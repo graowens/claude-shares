@@ -1,0 +1,382 @@
+https://www.youtube.com/watch?v=uCIohFNYC3o
+I'm going to teach you the single most powerful trading strategy that I have seen so far in 2026. And this is a
+strategy that you can execute in the first 5 minutes to one hour of the stock market open. And I call this the one and
+done setup because if you can catch even one of these trades per day, well, one trade can make your entire day, it could
+even make your entire week because of how high the riskto-reward is on this
+setup. And it's simple to understand. It's intuitive. It's logical. And most importantly, it's systematic. And in
+this video, I'm going to teach you exactly how you can begin executing this strategy on a daily basis. I'm going to
+explain why it's so effective. And I'm going to show you exactly where to place your entry, where to place your
+stop-loss, and exactly how you can manage the position so you could extract as much profit as possible from a
+winning trade. So, take out a notebook, take out a pen. This isn't going to be a long video, so make sure you watch until
+the end of it and pay attention. So, let's not waste any more time. Let's hop right into teaching you. Real quick, if
+you're brand new to the channel, my name is Emanuel. I've been a full-time day trader for almost 6 years. I'm also a
+Georgia Tech graduate, and my father is actually the one who taught me how to trade. He was my trading mentor, and my
+goal is to be as transparent as possible. So, this is my Charles Schwab brokerage account. And in 2025, I made a
+little bit over 4 $60,000 day trading stocks. I trade live every single day.
+And if you're thinking this is Photoshop or a screenshot that I edited, I will go ahead and refresh the page on my
+personal Schwab brokerage account. And there's the $461,000. So far this year in 2026, I've made a
+little bit over $100,000. And to be honest, it was a little bit of a slow start to the year for me. I'm not that
+happy with my trading. And actually, I'm going to be teaching you a strategy that I am adapting to this year because this
+is a strategy that has been highly effective specifically so far in 2026.
+And I day trade every single day. I'm making my morning watch list every single day. So, I see the types of
+trades that are working and the types of trades that are failing. And strategy I'm going to teach you today has been
+just unbelievable in 2026. And in fact, I am now adapting my own personal style
+of trading towards trading this setup specifically. So, let's hop right into
+this class. So, I want to teach you how to identify moves like this where this stock rallied from 318 all the way to
+$645 in a single day. And I want to teach you how to spot these types of moves before
+they happen in the first place. Another example is the UGRO from just a couple of weeks ago where on this first green
+day, the UGRO rallied over 100% from 359 all the way to 717. And then just two
+days later, this stock rallied from $8 all the way to $36. And you might think
+that it's impossible to identify these types of stocks before they make these
+explosive moves, but that is not the case. There is a systematic way to spot
+these types of movers before they go on and explode to higher prices. And that's
+exactly what I want to teach you in this video. I want to teach you a systematic approach towards finding these stocks
+and executing on them with conviction. And the first step is what you do in the
+pre-market. And you're going to be scanning for a very specific type of
+stock in the pre-market. And everything starts in the pre-market because that's when you prepare your morning watch
+list. And if you're not a prepared trader, then you're not going to be a successful trader. If you're rolling out
+of bed 5 minutes before the market opens and you think you're going to find success with trading, you're not. Okay?
+You have to be a prepared trader. I wake up a couple of hours before the stock market opens and I get myself mentally
+prepared. And then around an hour before the stock market opens, I begin my pre-market scanning process. And for
+this strategy, you're going to be scanning for a very specific type of stock. You're going to be scanning for
+what's called a gapping stock. A gap is an overnight change in price. For
+example, on the ESTC, this stock the previous day closed at $2.35.
+And then the next day, this stock opened at $3.17.
+This was a 34% overnight change in price to the upside.
+And you could literally see the gap on the chart. You could see this void in price action because there was a lot of
+overnight buying causing this stock to literally gap up. And gaps can occur for
+all sorts of reasons. They can occur because of some crazy news within the company or maybe this company reported
+really good quarterly earnings or perhaps the CEO announced something. It could happen for all sorts of different
+reasons. And ultimately, we don't care why it's gapping. We just care about what that gap is doing to the price
+charts. And that's exactly what I'm going to teach you how to identify in this video as well. But first things
+first, I want to show you how you could find these overnight changes in price in
+the pre-market. And this is actually a really simple scanning process. All you're really doing is scanning for the
+percentage change from where a stock closed the previous day to where it's
+opening the next morning or what price it's currently at in the pre-market. You're really looking for stocks that
+just change in price overnight. And there are a lot of free scanners that will actually give you a list of these
+gapping stocks every single morning. So, one of them that you could use is tradingview.com.
+And this is a completely free resource. You don't need the subscription. If you go to products and you click on
+screeners and if you click on stocks, it's going to send you to this page right here. And you want to click on
+extended hours. And from here, you're going to see pre-market change percentage and you're going to see
+pre-market gap percentage. Now, both of these functions are really, really similar. So, you could just use
+pre-market gap percentage. And if you click on it and then click on sort ascending, it's going to give you all of
+the gap downs. These are overnight changes in price to the downside. Now, I
+do trade a lot of strategies with uh overnight gap downs where I like going
+short on gap downs. However, I'm not going to be covering gap downs in this video. For this specific strategy I want
+to cover, we're going to be talking about gap ups or overnight changes in price to the upside. So, click on
+pre-market gap percentage again and then go to sort descending and it's going to
+give you a list of gap ups. So the QNCX this morning was a 70% gap up. That
+means today it opened 70% higher compared to where it closed yesterday.
+And my biggest winner today was actually the UK. This was the biggest runner today. And as you can see, there's a 70%
+gap up, 60% gap up, and it goes all the way down to much smaller gap ups like 9%
+or even, you know, 5% or 7%. Okay? So, what you want to do is copy all of these
+stocks to your watch list. And from there, you're going to go to the daily
+time frame, and you're going to begin your analysis, and you're going you're
+going to start looking for very specific criteria with these gap ups that we're
+going to be talking about right now. So, here's exactly what you're looking for. You want to find gap ups that end
+preexisting trends. So, let me go ahead and draw that out for you and then we're going to look at a bunch of different
+examples. So, you want to see a established downtrend on the daily time
+frame or you want to see a stock that is basing at its weekly and monthly low.
+And let's say this stock closed right here and this stock closed right here.
+You want to see a gap up that ends this downtrend and essentially starts the
+next move to the upside. It starts the next trend higher. And these sort of
+gaps can be extremely powerful. So you want to see a gap that essentially,
+let's say, gaps right here. And this gap is basically ending this downtrend
+because it's gapping above two lower highs above these two pivots. and it's
+effectively ending this downtrend and it's starting a new trend to the upside.
+And these sort of gaps can be extremely powerful because this gap is essentially
+shocking all of the sellers that were participating in this downtrend. For
+example, let's say you went short right here and you're making money off prices
+continuing lower. Or maybe you went short right here or short right here, wherever, and all of a sudden, you know,
+you're seeing the stock gap from here all the way back up. And now you're down
+on your position. The day before you were sitting pretty. You were up on your short. You're thinking this stock is
+going to continue lower. You're going to continue making a lot of money. And then all of a sudden, out of nowhere, this
+stock gaps up and now all of your shorts are underwater.
+And you can also call this kind of like a short squeeze. And what are you going to do if your shorts are all of a sudden
+underwater? Well, you're probably going to start cutting your losses. You're going to be covering your position. And
+when you cover your position, well, you're going to be buying back shares,
+which adds a lot of buying pressure on this stock. And that's exactly what we
+want to take advantage of. Or let's say maybe you were in it long. You were in
+long on this stock. You thought it was going to go to the moon and you sold the stock right here and you thought that
+was a great exit because it ended up dropping a whole lot more. But then all of a sudden the stock gaps up 100% and
+now it's starting to make the next move. Well, now all of the buyers who sold here now they're probably feeling FOMO.
+They're thinking, "Oh my god, this stock is right back up. It has a lot of momentum. Maybe my prior conviction on
+this stock was right. I'm going to get back in." And a lot of the buyers who sold here might actually end up, you
+know, getting back in because they're they're feeling FOMO. Same thing here. If the stock, you know, closes here and
+then all of a sudden it gaps up and it essentially starts a new move to the upside. Well, there might be a lot of
+short sellers that are stuck in this position, right? Because they're thinking prices are still going to go to
+the downside. Or maybe there's a lot of buyers that are like, "Hey, this stock has a lot of juice." Maybe there's a lot
+of institutional buying and they're thinking, hey, this stock, you know, might make a huge move to the upside
+because it's gapping up on significant volume. So, these are the exact type of stocks that you're looking for in the
+pre-market. You're going to be looking at the daily time frame, and you want to be looking for gaps that either end
+downtrends or that are igniting new moves on the larger time frames. So,
+looking back at the ESTC that I already showed you earlier in this video, let's go ahead and evaluate what's going on on
+the daily time frame. Well, what's the overall trend? I'm seeing lower highs and lower lows. I'm seeing a clear trend
+to the downside and then all of a sudden this stock gaps up about 35% and it
+effectively ends this downtrend. And perhaps all of the people who went short
+here or here or here, now they're all underwater and a lot of those short sellers are going to be forced to cover
+their position, especially with the price rocketing higher. Or perhaps there were a lot of people who, you know, saw
+a lot of momentum in this stock and they wanted to go long, right? A lot of these stocks sometimes are actually pump and
+dumps and, you know, we as traders can take advantage of that. Again, I don't
+hold positions overnight at all. I don't really swing trade. I'm only day trading these types of stocks. So even if it is
+a quick little pump and dump and I can find a high quality opportunity, I can hop in, catch the quick move and get
+out. And even if we look at the UGRO, let's look at it the first day. Well,
+what's going on here? We have a clear downtrend. And more specifically, over
+the past five days, we had one, two, three red bars, one green bar, and then another two red bars. Notice how with
+these two red bars, they started breaking down under the lows, right? Like this was triggering a new
+breakdown. And you could bet that all of the people who went short on this red
+bar, they're feeling good because they're seeing prices are breaking down. They're thinking, "Hey, this stock is
+going to make new lows. It's going to go to 150 and then a dollar and I'm going to make more and more money." And then all of a sudden, out of nowhere, this
+stock gaps from 220 to 358. 63% gap up
+out of nowhere. And notice how it gapped above this prior pivot. It gapped above
+this lower high, which is exactly what I want to see. And that's, you know, it
+had a ton of juice. This thing moved over 100% that day. And then two days later, let's see what happened. Well,
+the next day we had a red bar where it actually gapped up because we opened right here, got sold off where maybe a
+lot of the, you know, buyers who were in it long during this day the next day
+they sold. But then all of a sudden the next day after that, this stock gapped from 702 to 803. This was a 14% gap up,
+but it gapped above the 200 uh MA and it gapped above this red bar. And then I
+don't know what happened with the stock, if there was some crazy news or if there was a short squeeze, but then this stock
+absolutely rocketed. And I want to go ahead and show you a couple of more examples before we go into how to
+execute these trades. Let's go over an example from literally today. And this was one of my biggest winners, and this
+was the UKAR. And this was just an amazing runner today. And this trade made me a little bit over $1,300 on the
+day. Okay. And I'll be completely honest with you, I really underperformed on this setup. This is a very new style of
+trading even for me. And right now I'm actually adapting to this specific style
+of trading where I'm looking for one and done type of plays because you know for
+me if I can get significant size on a tight stop on a high quality setup that
+has an amazing catalyst on the daily time frame and if I'm able to catch a big move while being sized in and very
+careful with my risk management, you know, one trade can essentially make my entire week where I can make5 to $15,000
+off a single play. And I know I'm about to get there. However, I still need to
+kind of refine my execution. And that's kind of what motivated me to create this video. I am actively adapting my trading
+to this style of trading where I'm looking for that oneandone type of
+runner and I actually really love scalping. I'm a very versatile trader. So for me, I want to adapt to what's
+currently working right now. And these type of plays in 2026 have been highly
+effective. So right now, I'm really just focused on getting really, really good at these plays. And I see that almost
+every single day. I see the improvements. But Ukar made me a little bit over 1300 bucks. This stock gapped
+from 55 cents yesterday and it opened at around 87 cents today. This was a 58%
+gap up. And I mean, this stock moved from 88 cents today and it closed at
+$2.37. That's 167% move to the upside. And then
+right now in the post market, it is at $2.99. Now, I'm going to be completely
+transparent. Every single morning, I create a list of these potential explosive movers. But it's not like
+every single stock that I choose in the pre-market hits. So, I want to teach you
+how to avoid the ones that fail and focus on the ones that are actually
+going to put in a big move. And if you look at my watch list this morning, my
+top favorites from the explosive move watches was the UKAR, which we just went
+over, and the BBGI. So, we already talked about the UK. Let's look at the BBGI and analyze that.
+And that was a trade from today. And the BBGI gapped from 314 yesterday and then today
+it opened at 525. So this was a 67% move to the upside and I saw that the BBGI
+had a massive move back on December 10th. So, in my mind, I thought, you
+know, maybe this stock might put in another move similar to the one it had, you know, just a few months ago where on
+December 10th, it rallied over 330%. So, in my eyes, I'm like, hey, maybe this
+gap is going to ignite another move just like that and it did put in a move, right? It rallied about 25% to the high
+that it made at 652. And funny enough, guys, I actually lost money on this stock. I really liked it in the morning.
+I saw it consolidating on the five and 15 minute time frame. I had the intuition that we're going to see a
+move. I had conviction that we were going to see a move, but I got in way too early and I kind of tried to frontr
+run the move. I got in a little bit too early and um I think my average price
+was at like 520 um as this was consolidating and then it ended up you know producing this move lower on this
+bottoming tail and it shook me out right here. So, I got stopped out at around five bucks and I lost around $500. And,
+you know, a few hours later, this stock consolidated into the rising 20 period
+simple moving average on the 15 minute time frame and it ended up breaking out
+where it made a move from 520 all the way to 655. And on one hand, you know,
+it sucks that I lost money on this trade. However, part of me is actually happy because my conviction was right.
+My edge was right. Like, I had the right read. I did everything right except the execution. But I knew that this stock
+was going to pop. I had that conviction, certainty, and it just came down to the
+execution of it. But, you know, I'm just happy that I'm starting to feel a lot of intuition when it comes to these big
+movers. And yeah, I obviously missed out on the move. I had 2500 shares at 520 and I was prepared to add another lot
+over 545. So, this could have been a really nice winner, but I lost money on it. But listen, you got to pay your
+dues. If you want to adapt your trading and get really good at a particular style, you have to try it. You have to
+refine your execution and you have to get better. And ultimately, yeah, I lost on this trade, but I learned a lot as
+well. And that's all I really care about. So, BBGI was actually a nice winner. Now, I had other explosive move
+watches, but of course, not every single one of them ended up putting in a big move. Like, for example, we can look at
+the CYPH. The CYPH today, I saw this uh
+gap from let's see here, from 72 cents and it
+opened at around, I think, 84 cents. So, this was a 15% gap up. And I liked how
+we were breaking out on the daily time frame. We were gapping above this daily base and it ended up not really going
+anywhere. And I want to teach you how to avoid the ones that don't go anywhere because I did not trade this stock. I
+was never even interested in it during the trading day. And I'm going to explain why right now. Real quick before
+I continue, if you resonate with this video, I have hundreds of hours of free education just like this. Not only on my
+YouTube channel, but I also have a free 10 plus hour trading course that is genuinely better than most paid courses
+on the internet. It's going to teach you my strategies. It's going to teach you my system, and it's going to help build
+the foundation for your trading success. And it's going to help complement everything that I'm teaching you in this
+video right now. And you can get free access to my free course underneath this video in the description. And if you are
+looking for something a little bit more serious, you want handson help, you want to trade with me every single day, I do
+personally help scale and coach traders from zero to consistently profitable where I take my students under my wing
+and they learn how to trade by doing it with me on a daily basis where we're catching moves like this together every
+single day. So, if you're looking for more hands-on support and you're looking for a real mentor, you could also apply
+for my mentorship in the description underneath this video and you can book a free consultation call. So, let's say
+you have identified a few potential explosive movers and you're going to be
+watching them for the stock market open. Well, once the market opens, you're not just going to be buying them randomly.
+You have to look for a predefined trading setup. And I'm going to show you a few setups that you could look for.
+And the reason you want a predefined trading setup is when you have a setup
+that you can identify, you could have a very clear entry, a clear stop-loss. And
+with having a clear entry and stop-loss, you're able to size your position correctly based off your predetermined
+risk versus you get in randomly. And with a random entry, well, you're very
+likely going to have random risk. And if you have random risk, well, then you can't really practice solid risk
+management. You won't be able to limit your losses. You won't really know how much you're going to lose if the stock
+hits your stop-loss. And that's a huge problem. That's how a lot of traders get really burned by trading these types of
+trades. They get in randomly with random risk, random management, and then they're surprised when they see random
+results. They're surprised when they see a huge losing trade. You need to have everything predefined in your trading.
+So you're approaching these type of setups in a systematic way. So the first
+type of setup that you can look for is a simple breakout. You could see you could wait for prices to move up, consolidate,
+and then you could trade the next breakout where your entry is going to be
+over the base and your stop loss would be under the base. You could also trade
+a breakout if the stock actually begins pulling back at first, where let's say the stock pulls back at first, moves up
+a little bit, and then consolidates, you could also trade this as a breakout
+where your entry would be over the base, stop-loss would be under the base. And
+by knowing that your entry is over the highs of the base and your stop loss is under the lows of the base, well, you
+could actually size your position correctly because you know exactly where you're going to be getting in and exactly where you're going to be getting
+out if the trade doesn't work, if the setup is invalidated, and if it hits your stop-loss. So, you could trade
+breakouts. Very simple. Prices move up, consolidate, entry over the base, stop loss under the base. Or if the stock
+starts to pull in a little bit and makes a little rally, consolidates, entry over the base, stop loss under the base.
+Especially if you have a rising 20 MA, that's exactly what you want to see. You want to see the stock consolidate into
+the rising 20 MA. And I'll show you a bunch of examples of of exactly this.
+The second type of setup that you could look for is a simple retracement setup. And I like to keep my setups really,
+really simple. I think the simplest things in life are oftentimes the most brilliant. That's why I keep my trading
+very, very simple. I don't use complicated strategies. I don't use complicated indicators. I just rely on
+simple price action. So, the other type of setup you could trade is, like I said, a simple retracement where prices
+move up, they pull back, and you could look for a buy the dip opportunity where
+at this point, you're probably going to be looking for what I call an entry candle. you're going to be looking for a
+bottoming tail or you're going to be looking for a dogee bar. And if you see a bottoming tail or a dogee bar, you
+could put your entry above the bottoming tail or above the dogee bar. And you
+could put your stop loss below the bottoming tail or below the dogee bar. So this is exactly what you want to see.
+So let's say it looks something like this. Prices move up, they start to retrace, and right here you have a
+really nice bottoming tail. You put your entry above, stop loss below, and you go
+for the next move to the upside. And these are essentially the only strategies I trade. Uh actually, there's
+one more which you can call an opening range breakout. I think that's a really popular name for it online. I call it a
+high low where you wait for the first two or five minute candle to form or let's say the first two-minute candle
+forms like this or it could even be the one minute candle. Um, and once the first one, two, or five minute candle
+forms, you put your entry above, stop loss below, and then you would go for the next move to the upside. So, here
+are three ways in which you could actually trade these setups. But again, I want to emphasize, you have to make
+sure you know exactly where you're entering, exactly where you're going to exit if the trade hits your stop before
+you take the trade. And that's exactly how you know how to size your position. So you could trade breakouts or you
+could trade simple retracements and you could look for a bottoming tail or a dogey bar at the end of the retracement
+or you can wait for the first one two or five minute candle to form and then place your entry above that candle stop
+loss below. So let's look at the UK first and I'm going to be looking at the one minute time frame because oftent
+times I'm taking these trades right off the bat in the morning in the first like 30 minutes of the day. Okay, so the UKAR
+had a one minute high low or you can call this an opening range breakout on the one minute time frame where the
+first one minute candle formed and the entry would have been over the highs of the first one minute candle stop loss
+underneath the lows. So that's entry at around 88 stop loss call at around 85
+cents about a 3 cent stop. Now I got in late I saw this starting to rally at
+like 91 cents. So, I got in at 91, little bit of a late entry. So, my stop was a 6 cent stop or so, but this had a
+beautiful rally to the upside. And this is how I made that 1,300 bucks. And then, what do you know? On the one
+minute, we have a really nice retracement with dogee bar and a bottoming tail. So, the entry here was
+over 112 or so, stop loss underneath the retracement, and it also had a nice move
+to the upside right here. We could also look at the twominut time frame to just get a different perspective.
+But yeah, two-minut time frame had the nice rally and we had that little pullback dogee bar or you want to call
+this a bottoming tail, that's fine as well. And then we continued higher. And funny enough, I didn't catch this play,
+but later in the day, literally in the last like 30 minutes, this stock went from 117 all the way to 239. Just
+incredible. So, it made a uh move early in the morning and then it kind of consolidated all day, retraced, and then
+it put in a 15minute one, two, three, where we have an igniting uh green bar,
+that's one. We have a resting bar, that's two, and then the three would be the triggering bar. And I call that a
+one, two, three, where you have an igniting bar, resting bar, and then boom, triggering bar. So, for this
+setup, now I didn't catch this. I actually had a student that caught this with about 2,000 shares. I didn't catch
+this personally, but the entry would have been over 146, basically over the
+resting bars high, stop loss 132 for the 15-minute 123. So, this is another setup
+that I like to trade. If I was to draw it, it would look like this. Igniting bar, resting bar, and ideally this
+resting bar is like a dogee bar, or ideally this resting bar is like a bottoming tail or something. And then
+you have the igniting bar. uh or no, I'm sorry. You have the triggering bar. So, igniting bar is number one, resting bars
+two, and then triggering bar. An entry would be over the resting bars high, stop loss under the resting bars low.
+And this is a proper one, two, three, and we saw that example right here on the UK. Let's go back to the ESTC. And
+the setup was on the one minute time frame as well. And I caught this trade, but I took profits way too early. And on
+this ASTC, we had a small little pullback and we had a really nice consolidation right into the rising 20
+period simple moving average on the one minute time frame. We also had a really nice bottoming tail. So, we had a failed
+breakdown. Prices attempted to move lower. They failed. We continued to consolidate and I caught this over $3 or
+so. Stop loss at around $279. And this thing went on a huge run. Now, I did not
+catch this entire move, unfortunately. And that's why I'm trying to really refine my execution. But even even if
+you look at the fiveminut time frame, we had a nice move and then we had a pullback. And this was also a
+retracement setup, right? Where we moved up, we pulled back. It wasn't quite perfect. We didn't get a perfect dogee
+bar, but you know, the entry here would have basically been, I would say, over this base and then stop loss uh under
+this tail right here. And that also put in a massive move to the upside. Now,
+how would I manage one of these positions? And the way that I decided I'm going to do it is going 15minute bar
+by bar. So, what does that mean? Barby by bar is a management approach that you could use on these style of trades. And
+the way it works is you raise your stop-loss to every 15minute candles low.
+So a as each 15-minute candle finishes forming, you raise the stop loss to that
+candlestick's low. So for example, let's say the original stop loss is here.
+After the next 15-minute candle forms, you raise your stop loss to that candle's low. So this one finished
+forming, this one began forming, you raise your stop loss to this candle's low. Once this one finishes forming and
+this candle begins forming, you raise it again. And then once this one finishes, you raise it again. And then once this
+one finishes and this one begins forming, you raise it again. And once this candle finishes forming and this
+one begins, you raise it again and you would have been stopped out right here. Now notice, you know, by getting stopped
+out right here, you are missing some profit. Um, you know, you're leaving profit on the table because this thing
+ended up rling to 645, but based off 15minute barby management, you'd be
+getting out at 502. So what you can do once the trade is approaching five or six or seven Rs in your favor, you can
+tighten up the management where you can go to the five minute time frame and do the exact same thing where as the trade
+is really starting to rally in your direction, you can go five, you can go to the smaller time frame and go five
+minute bar by bar instead. Where now let's say your stop loss is here. As soon as this fivem minute candle
+finishes forming, you would raise it. As soon as this one finishes forming, you raise it. As soon as this one finishes
+forming, you raise it. This one finishes, you raise it. This one finishes, you raise it again. This one
+finishes, you raise it again. And then you would have gotten stopped out right here where this red candle took out the
+lows of this 5minute red candle. But you would be getting stopped out at uh 563.
+563 is a whole lot better than getting stopped out 15minute barby bar right
+here. So that's a management strategy that you could use. five minute bar by bar or 15-minute bar by bar. Or what you
+could do is first stick with 15minute bar by bar where you give the trade a lot of room to fluctuate. You have wider
+stops because you're using a larger time frame to trail your position. And then as it's continuing in your favor and
+you're up four, five, six Rs, you tighten up your management so you could take profits a little bit quicker if the
+trade starts to pull back and you switch to five minute bar by bar or you could have even switched to two-minute bar by
+bar. Ultimately, that is up to you. And I have a lot of other videos that teach you how to do barby bar management in my
+free course and on uh my YouTube channel. I actually posted a video, I think two videos ago that teach you this
+exact barby strategy. But that's exactly how you can manage uh some of these winning trades. Let's take a look at the
+UGRO intraday setups from just a couple of weeks ago. And this is the stock that rallied from 350 all the way to $36. And
+we're going to be looking at the 15minute time frame. And we're going to go to the first green bar, which was the
+day of the gap, where this stock gapped from 217 to $357
+the next day. And this was a 64% gap up. And it essentially made this pattern
+right here where the stock pulled in, kind of moved up a little bit, and then consolidated right into the rising 20
+period simple moving average. And this is honestly the primary indicator that I use. I don't use MACD or Ballinger bands
+or VWAP or RSI or Elliot wave theory or any of that garbage. I keep it simple. I
+use the 20 period simple moving average and the 200 period simple moving average. That's it. So, it based right
+into the 20 MA and we had that beautiful breakout where entry above the base,
+stop-loss over the base. And funny enough, I actually had this stock on my
+favorites, but I stopped watching it as soon as it made new lows on the day
+because in my almost six-year career, I have never really traded breakouts that
+stem from the low of the day. Like, this setup is brand new for me. And in 2026,
+this setup has actually been really effective, especially if it gives you the right kind of components in it. But
+I used to never trade this setup cuz I used to never trade setups from the low of the day. Like I didn't like this
+stock made a new low. I didn't like that. That showed a lot of bearishness to me. But it ended up kind of basing
+right into the 20 and then popping anyway. So I missed it for that reason. But amazing pop. And if you look at it
+just a few days later, we had a little smaller time frame breakout which I'm going to show you in just a second. But
+look at this breakout. We had the big move and we consolidated right into the
+rising 20 MA literally based directly into it on the 15 minute time frame. And if you see something like this and you
+really like the trade, you go to the smaller time frames to find a better entry to find a tighter stop. Or you
+could have just went long over this base, stop-loss under the base and
+called it a day. And of course, this had just insane follow-through. Most stocks do not follow through like this. But
+this is just an amazing example. And if we go to the smaller time frames here,
+like let's go to the five minute time frame on that play. You could see the breakout. It was almost identical where
+the stock opened, it made a new low, it moved up, it dropped and formed a higher
+low right here because we made a low. This is a higher low. Got a bottoming tail, another bottoming tail, and this
+was a fiveminute breakout over 801 or so. Stop loss below the base, literally
+almost identical to the one that formed here. And then, you know, this one just had an absolutely unreal run. I mean, it
+doubled in a matter of like, I don't even know, an hour or so. Just incredible. And if you went, let's say,
+five minute bar by bar on this move higher, right? Let's say you went bar by
+bar management where here's your stop. And let's say as the trade started to really run, you raised your stop to
+here. And then this bar finished, you raised it again. And this bar finished, you raised it again. This bar finished,
+you raised it again. And technically, you would have gotten stopped out here. You know, let's say you gave it a little bit more room, right? And again, you
+raised it again, you raised it again, you raised it again. And you know, especially if you gave it a little bit of room here, maybe you went 15-minute
+bar by bar, you would have gotten stopped out right here, right? So, you would have captured a huge portion of
+the move. Now, if you went 15-minute bar by bar, you would have gotten stopped out probably right here because none of
+these green bars took out the prior bars low. So, you you would have gotten stopped out, I think, right around here
+or here. So, you would have captured a majority of the move if you went five or 15 minute barby bar management and and
+then it based into the 20 uh MA on the 15 and then produced the next massive rally higher. So, again, we're not
+trading random patterns or random setups. We're looking for very uh systematic predefined setups, whether
+that's a retracement or whether that is a breakout. You know, we want to have a predefined setup so we know exactly
+where our entry is, exactly where our stop loss is in case the trade doesn't work and the setup is invalidated. Now,
+let's go back to the watch list I posted earlier and we talked about the CYPH and how that never ended up working or it
+wasn't really an explosive move. So, let's talk about how you could have avoided that. So, this is the CYPH on
+the fiveminut time frame. And I want you to look at this chart and I want you to ask yourself, do you see a setup? Do you
+see a breakout? Do you see a retracement? Do you see a high low? And for me personally, I don't see anything.
+This stock opened, chopped around, produced a huge topping tail, and then just sold off and went sideways. So, I
+don't even see a setup here. So, even though this stock was on my explosive
+move kind of watch list, it never produced a setup. So, I would have never gotten in in the first place. So, I
+avoided this loss. I avoided the stock not working, right? ended up getting sold off because, well, it never
+produced a setup anyway, right? There was no predefined setup for this stock, so I avoided it entirely. All right,
+guys. I hope you found tremendous value in this video. And this is kind of a new style of trading, even for me. I've
+never really been a oneanddone type of trader, but as traders, we need to adapt to what's currently working right now.
+And I have seen setups like this almost every single day that produce just
+amazing moves. So, I want to adapt. I want to, you know, implement this style
+of trading within my trading plan. I know I'm going to be absolutely amazing at trading these setups because I'm
+putting in the work every single day towards getting there. I'm calling these plays out for my students every single
+morning. We review them together. And I know pretty soon I'm going to be catching five to $15,000 winners
+literally in the first couple hours of the day trading this style because I'm a very determined person. I'm a damn good
+trader and I know I'll be able to adapt to this style very very quickly. So
+hopefully you found a lot of value. Make sure you leave a like. Make sure you leave some feedback in the comments.
+Make sure you subscribe to the channel for more trading education. I genuinely want you guys to succeed. And make sure
+you watch my free course. Take advantage of all the free education I have on the internet. Thanks so much for watching.
+and I'll see you on the next

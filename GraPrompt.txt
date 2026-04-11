@@ -1,0 +1,31 @@
+I want to automate trading by automated scalping at first I want to paper trade.
+I have transcripts of experts I want to summarise and use their knowledge, these are in the transcripts folder.  I will add to this later on.
+I have a paid for trading view account and an alpaca account.
+Use data from https://www.capitoltrades.com/ to determine the best trades also
+My aim is to scalp stocks in the first 1hr of NYSE taking advantage of stop gaps while also aliging to some capitoltrades.com
+
+In the future if it makes sense, run this in Agent Zero or leave it running in Claude.
+
+Build it in a reactjs / tanstack framework using shadcn.  If it requires a backend use nestjs or symfony. If it needs a database use mysql.  I can run node locally, or you can run the project in containers using docker compose.
+
+To begin i want to paper trade and run tests on previous stock prices
+
+Build a simple web gui using shadcn, where I can see our profit / loss, any settings and trades made.  If it makes sence, a area where I can add stocks to target.  I would like to be able to add a list of stocks in the morning UK time which will then check and run when the US Stock market opens.
+
+Ask any questions.
+
+------
+1 - .env details
+Alpaca API 
+Endpoint=https://paper-api.alpaca.markets/v2
+Key=PKHRMTMPZDM3L7NFJ6QX6EIA3C
+Secret=5kTfURHNsnLUuNZgAR8QRNoxxgdJm4jMKe4Kz8ieqToK
+
+2 - Yes Gap-ups Gap-downs
+3 - have these as settings in the gui, I am in GBP but can do USD
+4 - Yes scrape
+5 - transcripts folder as txt files
+6 - containerise now
+7 - use nestjs, same language
+
+create a .gitignore for this project

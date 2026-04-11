@@ -1,0 +1,510 @@
+https://www.youtube.com/watch?v=peDweSNZECk
+If you give me the next few minutes of
+your time, I'm going to teach you
+something that you can immediately
+implement within your trading plan
+starting tomorrow. And this will
+instantly improve your trading
+execution. And I'm going to teach you a
+strategy that you could use to maximize
+your profits on your winning trade. So,
+if you've ever had a moment where you
+cut your winner way too early or you had
+no idea where to take profits on your
+winning trade, well, this video is for
+you. And this strategy is simple. It's
+intuitive to understand and it's
+systematic. You can begin incorporating
+this within your trading as soon as the
+video ends. Profitable trading is all
+about limiting your losses on your
+losing trades, but making sure that you
+capitalize on your winners. And that's
+where most people have a problem where
+their losses are big, but their winners
+are small. And in this video, I want to
+help you solve that problem. And I want
+to show you how you can let your winners
+run in a systematic way. And this is
+something that I have been implementing
+within my own trading over the past five
+and a half years. And it helped me make
+over $100,000 in the last three months
+day trading stocks. And this is my
+Charles Schwab brokerage account. I want
+to be as transparent as possible. And
+I'll go ahead and refresh the page as
+well just to show you this isn't
+Photoshop or a screenshot that I edited.
+As you can see, over the past 3 months,
+I generated a little bit over $100,000.
+And that's with me taking a few days off
+and me having honestly a pretty slow
+start to the year. So, let me go ahead
+and show you exactly how the strategy
+works so you could start implementing it
+within your own trading. One of the
+hardest parts about trading is mastering
+trade management. And there are two
+steps to any profitable trade. The first
+step is to identify the quality of the
+setup and find your entry price,
+stop-loss price, target price, and of
+course, size your position based off
+your predetermined risk. And then as
+soon as the trade hits your entry, it
+triggers you into the position. And now
+you're in. That's step number one. But
+step number two is in trade management.
+What are you going to do once you're in
+the trade? For example, where are you
+going to be taking profits? Are you
+taking profits at your target one, or
+are you taking profits at target two?
+And if you don't know how to pick
+targets, I'll teach you that a little
+bit later in this video. And if you do
+have targets, great. How much profit are
+you taking at target one? Are you taking
+100% of your profits, or are you taking
+50% of your profits and you're going to
+leave a runner in that position for a
+target two? or are you going to be
+trailing your position in any way where
+you continuously move your stop-loss as
+the trade is continuing in your favor?
+And if so, what's the strategy for
+trailing your position? Right? You need
+to have a game plan in terms of what
+you're going to do to extract as much
+profit as possible from a winning trade.
+And this needs to be systematic. This
+needs to be predetermined. You have to
+know this before you get into the trade
+in the first place. And I want to teach
+you a strategy that I've been trading
+over the past six years that will give
+you a very systematic way of doing this.
+So let's say we are looking at a
+breakout. We have a nice move up, nice
+consolidation, and we begin to break
+out. By the way, if you haven't really
+watched this channel, I love trading
+breakouts. I try to keep my trading
+extremely simple. And if you want to
+learn all my strategies and systems, I
+have a free 10 plus hour course that is
+genuinely better than most paid courses
+on the internet. It's going to teach you
+my strategies, my systems, and it's
+going to build the foundation for your
+success and teach you a lot about trade
+management as well. So, you can find
+that in the description. Take advantage
+of it. Okay, but we're looking at a
+breakout here. One of the primary
+strategies I trade. We have a nice move
+up. We base. Let's say our entry price
+is at $6 and our stop loss is at $5.90.
+So what are we risking? Well, we are
+risking 10 per share because $6US 5.90
+equals 10. That is our risk per share.
+Okay. And what is our reward per share?
+Well, the target here hypothetically is
+620. And $620US $6 is 20. So that's our
+that's our reward. Okay. So we're
+risking 10 cents per share to make a
+potential 20 cents per share. That's a
+2:1 risk-to-reward. That's usually my
+minimum R to R for every trade that I
+take. Fantastic. That should make sense.
+Now, let's say the trade is, you know,
+starting to move up, starting to
+continue in your favor, and all of a
+sudden it's approaching target, and
+maybe it's even surpassing your target,
+right? What are you going to do in this
+instance? And I want you to think about
+that based off your current trading
+plan. What would you do here? The trade
+is approaching your target. Are you
+taking 100% of your profits? And if so,
+I have a genuine question for you. How
+would you feel if the trade continued in
+your favor after you took full profits
+at your target one? Now, on one hand,
+you might say, "Hey, I don't really care
+if the trade continues higher in my
+favor because in my plan, I take 100% of
+my profits at target one." And that's
+valid, right? That's your plan. But
+maybe some some other people would be
+thinking, "Hey, yeah, well, if I took
+all of my profits at target one and I
+saw the trade continue even higher, I'd
+kind of feel bad about it. I'd feel like
+I'm leaving a lot of money on the table
+where I found a profitable trade, but I
+took profits way too early. My target
+one was set way too early in the trade.
+And I would want to be a part of this
+move. I want to potentially, you know,
+see a 650 target, right? If your target
+one, let's say 620, maybe the trade ends
+up hitting 650 and you want to be a part
+of that setup. Okay? And that's valid,
+too. So, what do you do? You want to
+have a management strategy that will
+allow you to stay in a winning trade if
+it does surpass your target one or your
+target two. And the strategy that I like
+to use is called barbybar
+management. And this is a very simple
+strategy. So the trade triggers and it
+starts to approach your target. And as
+soon as it starts approaching your 2:1
+target where in this case is 620, you
+could activate this barby bar
+management. And barby bar management is
+where you raise your stop loss to the
+prior candlesticks low. So for example,
+this bar finishes forming and then this
+bar begins forming and now it's past
+your target at 620. You've made 2:1 R to
+R. You can raise your stop loss from
+this point right here to this prior bars
+low. So now your stop loss is right
+here, which is slightly above break
+even. So if it did come back in, right,
+you'd be giving back some profit, of
+course. But what this allows you to do
+is stay in a winning trade if it does
+continue in your favor. Because after
+this bar finishes forming and the next
+one begins, you would raise your stop
+loss again to this prior bars low. And
+as soon as this candlestick finishes
+forming and this one begins forming,
+you'd once again raise it. And you would
+be continuously raising your stop loss
+to every candlestick's low. And then
+once this one finishes forming, you
+would raise it again. And you would get
+stopped out on this red bar. Let's say
+this red bar begins forming and then all
+of a sudden it comes in and stops you
+out right here. That would be your exit.
+Going bar by bar right here. Now notice
+by going bar by bar, you're able to exit
+at a significantly higher price than
+what your first target was. And that's
+the entire idea here. By raising your
+stop-loss up when you're in a winning
+trade, you're allowing the trade to
+fluctuate. You're giving the trade room
+to breathe while also putting your stop
+in a place well where you will secure
+profits on a winning trade, right?
+Because once your stop loss and let me
+go back is right here. Once this bar
+finishes forming and this one begins and
+your stop loss is right here because you
+went bar by bar and you raised it to
+this bar's low. Well, at this point
+you're guaranteed to make 2:1 guaranteed
+because your stop loss is right above
+the target at 620. So, even if this goes
+down, let's say this ended up, you know,
+ends up becoming a red bar and stops you
+out, no matter what, you're finishing up
+two to one, right? You're going to have
+you secured uh two R tor because you're
+getting out at around 620, right? But by
+keeping it here, you're also allowing
+the trade room to continue higher.
+You're giving the trade room to breathe
+in attempt in an attempt to catch a much
+bigger play. So, let's go over a great
+example. This was on the AUX and this
+was a gold stock from a couple of weeks
+ago. And this trade made me a little bit
+over $7,200.
+And let's go ahead and break it down. So
+gold was actually crashing that day. And
+as a result, a lot of gold stocks were
+crashing as well. And this I AUX gapped
+around 8% to the downside. So this was
+on my watch list. It wasn't really a
+favorite for me at the open, but it was
+on my watch list. And then as I was
+scanning my list around 10 minutes into
+the day, I noticed this setup right here
+where the stock opened, it attempted to
+move higher. That attempt failed leading
+to a topping tail suggesting that the
+sellers have taken control. And from
+there, we had an igniting red bar,
+resting bar, and then a triggering bar.
+So this is a one, two, three. This is
+one of the setups that I trade. I also
+teach this in my free Temple Hour
+course. So, make sure you watch that
+video. But for this, the entry is below
+the resting bar. Stop loss above the
+resting bar. So, this is a one, two,
+three, and my stop loss was right here
+at 145. It was a really tight stop, like
+a two cent stop loss. And this stock was
+moving really smoothly off order flow.
+So, and it was highly liquid. So, I
+really sized up on this play. And I went
+15-minute bar by bar where as soon as
+this candle finished forming, I lowered
+my stop. As soon as this candle finished
+forming and this one began, lowered my
+stop. As soon as this candle finished,
+lowered my stop, right? As soon as this
+one, lowered my stop again. And then
+this candle finished forming, lowered my
+stop. And I kept doing that. And it
+never stopped me out. Like none of these
+candles ended up hitting my stop loss.
+So I stayed in the trade and I kept
+lowering my stop loss. And as soon as
+this candle finished forming, I lowered
+it again and I got stopped out on this
+green candle right here. And that made
+me $7,234
+because I was going a 15minute bar by
+bar. I allowed the trade to continue in
+my favor and I gave it room to
+fluctuate, room to breathe by going bar
+by bar. Let's take a look at another
+trade. I took this one last week. This
+was on the arm and this made me $877.
+So let's go ahead and break it down. So
+I took this as a fiveinut breakout entry
+above the base right here. We
+consolidated right into the rising 20
+and the five and the stop loss was right
+below the base right here and I was able
+to catch this move to the upside. Now my
+first question whenever I'm looking at a
+potential breakout is what is the
+potential target? Does this trade have a
+solid riskto-reward? So, I need to
+assess what the target is. And whenever
+I look at a potential target, what I do
+is I go to the higher time frames. In
+this case, I go to the daily time frame.
+And what I do is I look to the left and
+I try to find areas of congestion or I
+find the next resistance area. And
+specifically, what I'm looking for is a
+pivot. I'm looking for prices to move up
+and come down. Or I'm looking for prices
+to move up, they base a little bit, and
+then they come down. And this would be
+an area of resistance, right? And I'd
+basically be looking at this as a
+potential target. So, let's go ahead and
+implement that really fast. If I look to
+the left right here, right? Remember
+those little black little lines I drew?
+If I look to the left, do I see
+resistance? Well, the next area of
+resistance I'm seeing is this area right
+here where I see a bunch of pivots. I
+see we moved up, down, up, down. So, we
+have a bunch of resistance right here.
+So, let's go ahead and draw that
+resistance area. And keep in mind,
+resistance is never one price. It's an
+area. So, that is the next area of
+resistance. I can draw it a little bit
+closer like this. So, does this trade
+have room to run to the next resistance
+area on the daily? And the question is,
+you know, absolutely it definitely does,
+right? If we go back to the 5minut time
+frame, we have plenty of room to that
+next resistance. So I'm absolutely
+comfortable taking this trade because we
+have pretty big targets. The next
+resistance area is pretty far away on
+the daily time frame. And from there, as
+soon as the trade started moving in my
+favor, I went five minute bar by bar.
+Keep in mind, I'm on the fiveminut time
+frame. So, I first raised my stop loss
+to this bar's low and then as soon as
+this candlestick finished forming, I
+raised it again. As soon as this
+candlestick finished forming, raised it
+again. Soon as this one finished
+forming, raised it again. As soon as
+this one did, raised it. Soon as this
+one did, raised it, raised it right
+here. And I got stopped out right here
+at 16280, right? And it was under this
+red bars low, which was basically the
+top, right? because I went five minute
+bar by bar and I didn't take uh profits
+impulsively at a random point. I was
+able to stay in this winning trade until
+basically the top. Now you might be
+wondering what time frame do I do barby
+management on? And I want to break that
+down with this example. So this was a
+trade from literally today. This was on
+the ASTC and this made me only $350. And
+I'm going to show you why I did not
+capitalize on this play. And if you take
+a look at this chart, this stock went
+from $3, that's where it opened, all the
+way to 650. It went up over 100% today.
+And I barely caught any of this move
+because I had really lousy management.
+And I only made 350 bucks off something
+I should have made a whole lot more on.
+So, learn from my mistake with this
+example. So, let's go ahead and break it
+down on the smaller time frames. Let's
+go to the one minute time frame. And my
+original call was right here. And this
+was a beautiful base breakout where the
+stock kind of dropped, retraced a little
+bit, based nice bottoming tail, failed
+breakout. It attempted to move lower and
+failed. The buyers took control,
+continued to base. I called this live at
+$3, stop-loss at $279 right here. And I
+took profits basically on this first
+pop. And I had some slippage on my exit.
+I didn't really size up. I only had
+2,000 shares on this, so I really sized
+down because the stock was kind of
+sketching me out in the in the morning.
+There was a little bit of spread, but I
+took it on the first pop. And if I just
+went 15minute bar by bar, I would have
+stayed in for essentially the entire
+move. If I went 15 minute bar by bar,
+because keep in mind, my original stop
+was right here. I would have from there
+raised my stop loss to this bar's low
+and then when this bar finished I would
+have raised it again. Then when this bar
+finished forming would have raised it
+again. Then I would have raised it again
+right here and then I would be getting
+stopped out technically right here on
+this red bar. Right? So if I went
+15-minute bar by bar I would have gone
+out at around $5. But notice that you
+know the stock ended up rallying all the
+way to 650. So if you went 15minute bar
+by bar, you actually left a whole lot of
+profit on the table because this stock
+rallied at, you know, an extra $1.50. So
+what you could do is when a trade is
+really accelerating, it's really going
+in your favor, you can go bar by bar on
+a smaller time frame and you can go to
+the five minute time frame or even the
+twominut time frame and do bar by bar
+from there. So let's say at five bucks
+it's starting to move. you decide to go
+five minute bar by bar instead. Well, in
+that case, this fivem minute bar
+finishes forming, you raise it and then
+when this 5m minute bar finishes forming
+uh finishes forming and this one begins,
+you raise it again. So, if you go five
+minute bar by bar, you would have gotten
+stopped out at 560. So, as a trade is
+really approaching your target and
+accelerating, you can go bar by bar on a
+smaller time frame. And by doing it on a
+smaller time frame, you'll end up having
+a tighter stop. Let's try it on the two
+and see where we would have gotten
+stopped out. If you went two minute bar
+by bar at $5,
+let's say as soon as it hit $5, you went
+two minute bar by bar, you would have
+raised it to here. And then when this
+one finishes forming, you would have
+raised it again. When this one finished
+forming, you would have raised it again.
+Then when this one finished forming, you
+would have raised it again. And then you
+would have raised it one final time
+right here. And then this red bar would
+have taken out your stop and you would
+have gotten stopped out at 620. Wow. So
+that's insane. So going two-minute bar
+by bar, which is a tighter trail, you
+would have end up, you know, securing
+even more profits. However, keep in
+mind, if you do bar by bar on a smaller
+time frame, you might also get shaken
+out of the position. Let me give you an
+example. Let's say you were going
+two-minute bar by bar here, as the trade
+is continuing higher, you would have
+raised it to this bar's low. And then
+after this candlestick uh finished
+forming, you would have raised it to
+this bar's low. and then you would have
+gotten stopped out right there, right?
+Just to see the trade continue higher.
+So keep in mind, you have to find that
+balance. And my suggestion is if you
+want a a looser trail and you want to
+give the trade more room to fluctuate,
+more room to breathe, use the 15minut
+time frame and the five minute time
+frame when going bar by bar. But if you
+want a really tight trail, you want to
+secure your profits quick while still
+giving the trade a little bit room to
+fluctuate and breathe, you should go
+2-minute bar by bar or 1 minute bar by
+bar. Hope you found a lot of value in
+this video. And before you click off
+this video, make sure you start my free
+10 plus hour course. It's going to
+supplement everything that I taught you
+in this video. It's really going to
+build the foundation for your success.
+It's genuinely better than most paid
+courses on the internet. Take advantage
+of it. It's in the description right
+under this video. And if you are looking
+for something a little bit more serious,
+you want that personal mentor by your
+side, I do personally help scale and
+coach traders from zero to consistently
+profitable where I take my students
+under my wing and they trade live with
+me every single day. And they honestly
+see life-changing results because
+they're learning how to trade by
+actually doing it with their mentor. And
+that's exactly how I learned how to
+trade. I did it with my father. He was
+my trading mentor. So, if you are
+looking for something a bit more
+serious, you want personalized help, you
+could also apply for my mentorship in
+the description underneath this video.
+So, make sure you leave a like under
+this video as well. Make sure you leave
+a comment with feedback and subscribe to
+the channel for more trading education.
+I am genuinely trying to lead the next
+generation of profitable traders and I
+want to help you. So, you know,
+subscribe to the channel. I'll see you
+in the next video. Thank you so much.
