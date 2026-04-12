@@ -25,4 +25,8 @@ export class RunBacktestDto {
   @IsOptional()
   @IsString()
   strategy?: string;
+
+  @IsOptional()
+  @IsNumber()
+  startingCapital?: number;
 }

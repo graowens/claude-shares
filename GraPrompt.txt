@@ -29,3 +29,8 @@ Secret=5kTfURHNsnLUuNZgAR8QRNoxxgdJm4jMKe4Kz8ieqToK
 7 - use nestjs, same language
 
 create a .gitignore for this project
+
+-----
+1 - use alpca
+2 - do stocks that have dropped that Emanuel focuses on.  I do not think my account allows to short stocks
+3 - yes. I want to enter a total amount of money for that day e.g. £100 and you use these strategys to to morning scalping. I want another 2 settings for stops both above and below our total money for that day.  If you say went less than £20 we would stop or makde more than £180 we would stop.

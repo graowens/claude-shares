@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AlpacaService } from '../alpaca/alpaca.service';
+import { AssetCacheService } from '../alpaca/asset-cache.service';
 import { TradesService } from './trades.service';
 import { SettingsService } from '../settings/settings.service';
 import { StrategiesService } from '../strategies/strategies.service';
@@ -16,6 +17,7 @@ export class ScalpingService {
 
   constructor(
     private readonly alpaca: AlpacaService,
+    private readonly assetCache: AssetCacheService,
     private readonly trades: TradesService,
     private readonly settings: SettingsService,
     private readonly strategiesService: StrategiesService,
@@ -49,10 +51,28 @@ export class ScalpingService {
       'takeProfitPercent',
       2,
     );
-    const maxPositionSize = await this.settings.getNumber(
-      'maxPositionSize',
-      10000,
-    );
+    const dailyBudget = await this.settings.getNumber('dailyBudget', 100);
+    const dailyLossLimit = await this.settings.getNumber('dailyLossLimit', 20);
+    const dailyProfitTarget = await this.settings.getNumber('dailyProfitTarget', 180);
+
+    // Check daily P/L limits before starting
+    const pnlSummary = await this.trades.getPnlSummary();
+    const todayPnl = pnlSummary.today;
+
+    if (todayPnl <= -dailyLossLimit) {
+      this.logger.warn(`Daily loss limit reached (P/L: ${todayPnl}). Not starting monitor.`);
+      this.monitoring = false;
+      return;
+    }
+
+    if (todayPnl >= dailyProfitTarget) {
+      this.logger.warn(`Daily profit target reached (P/L: ${todayPnl}). Not starting monitor.`);
+      this.monitoring = false;
+      return;
+    }
+
+    // Calculate per-trade position size from daily budget
+    const maxPositionSize = dailyBudget / maxConcurrent;
 
     let openCount = 0;
 
@@ -66,6 +86,8 @@ export class ScalpingService {
           stopLossPct,
           takeProfitPct,
           maxPositionSize,
+          dailyLossLimit,
+          dailyProfitTarget,
         });
         openCount++;
       } catch (err) {
@@ -78,7 +100,7 @@ export class ScalpingService {
     // Monitor open positions for exit conditions every 30 seconds
     // for the first hour after open
     this.monitorInterval = setInterval(async () => {
-      await this.checkExits(stopLossPct, takeProfitPct);
+      await this.checkExits(stopLossPct, takeProfitPct, dailyLossLimit, dailyProfitTarget);
     }, 30_000);
 
     // Stop monitoring after 1 hour
@@ -102,14 +124,39 @@ export class ScalpingService {
       stopLossPct: number;
       takeProfitPct: number;
       maxPositionSize: number;
+      dailyLossLimit: number;
+      dailyProfitTarget: number;
     },
   ) {
+    // Check daily P/L limits before each trade
+    const pnlSummary = await this.trades.getPnlSummary();
+    const todayPnl = pnlSummary.today;
+
+    if (todayPnl <= -params.dailyLossLimit) {
+      this.logger.warn('Daily loss limit reached');
+      this.stopMonitoring();
+      return;
+    }
+
+    if (todayPnl >= params.dailyProfitTarget) {
+      this.logger.warn('Daily profit target reached');
+      this.stopMonitoring();
+      return;
+    }
+
+    // Check short selling permission for gap-down items
+    const isGapUp = item.gapDirection === 'up';
+    if (!isGapUp) {
+      const allowShortSelling = await this.settings.getBoolean('allowShortSelling', true);
+      if (!allowShortSelling) {
+        this.logger.log(`${item.symbol}: gap-down but short selling disabled, skipping`);
+        return;
+      }
+    }
+
     const quote = await this.alpaca.getLatestQuote(item.symbol);
     const currentPrice = Number(quote.AskPrice) || 0;
     if (!currentPrice) return;
-
-    // Determine if the gap condition is met
-    const isGapUp = item.gapDirection === 'up';
     const targetEntry = item.targetEntry
       ? parseFloat(String(item.targetEntry))
       : currentPrice;
@@ -164,6 +211,7 @@ export class ScalpingService {
         entryPrice: currentPrice,
         status: 'open',
         strategy: matchedStrategy?.name ?? 'gap-scalp',
+        exchange: this.assetCache.getExchangeForSymbol(item.symbol) || undefined,
         openedAt: new Date(),
       });
 
@@ -175,7 +223,30 @@ export class ScalpingService {
     }
   }
 
-  private async checkExits(stopLossPct: number, takeProfitPct: number) {
+  private async checkExits(
+    stopLossPct: number,
+    takeProfitPct: number,
+    dailyLossLimit: number,
+    dailyProfitTarget: number,
+  ) {
+    // Check daily P/L limits
+    const pnlSummary = await this.trades.getPnlSummary();
+    const todayPnl = pnlSummary.today;
+
+    if (todayPnl <= -dailyLossLimit) {
+      this.logger.warn(`Daily loss limit reached (P/L: ${todayPnl}). Closing all and stopping.`);
+      await this.alpaca.closeAllPositions();
+      this.stopMonitoring();
+      return;
+    }
+
+    if (todayPnl >= dailyProfitTarget) {
+      this.logger.warn(`Daily profit target reached (P/L: ${todayPnl}). Closing all and stopping.`);
+      await this.alpaca.closeAllPositions();
+      this.stopMonitoring();
+      return;
+    }
+
     const openTrades = await this.trades.findAll('open');
 
     for (const trade of openTrades) {

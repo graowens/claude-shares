@@ -59,6 +59,36 @@ const DEFAULT_SETTINGS: DefaultSetting[] = [
     type: 'boolean',
     description: 'Enable or disable automated trading',
   },
+  {
+    key: 'dailyBudget',
+    value: '100',
+    type: 'number',
+    description: 'Total amount to risk per day (in display currency)',
+  },
+  {
+    key: 'dailyLossLimit',
+    value: '20',
+    type: 'number',
+    description: 'Stop trading if daily loss exceeds this amount',
+  },
+  {
+    key: 'dailyProfitTarget',
+    value: '180',
+    type: 'number',
+    description: 'Stop trading if daily profit exceeds this amount',
+  },
+  {
+    key: 'allowShortSelling',
+    value: 'true',
+    type: 'boolean',
+    description: 'Allow short selling (requires margin account)',
+  },
+  {
+    key: 'exchanges',
+    value: 'NASDAQ,NYSE',
+    type: 'string',
+    description: 'Comma-separated list of exchanges to scan (NASDAQ,NYSE,ARCA,BATS,OTC,AMEX,CRYPTO)',
+  },
 ];
 
 @Injectable()

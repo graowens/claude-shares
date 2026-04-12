@@ -3,7 +3,7 @@ import { createRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { rootRoute } from "./__root";
 import { getTrades, createTrade } from "@/lib/api";
-import { formatCurrency, formatDate, plClass } from "@/lib/utils";
+import { cn, formatCurrency, formatDate, plClass, exchangeColor } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,6 +102,7 @@ function TradesPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Symbol</TableHead>
+                      <TableHead>Exchange</TableHead>
                       <TableHead>Side</TableHead>
                       <TableHead>Qty</TableHead>
                       <TableHead>Entry</TableHead>
@@ -117,6 +118,11 @@ function TradesPage() {
                       <TableRow key={t.id}>
                         <TableCell className="font-medium">
                           {t.symbol}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={cn("border text-xs", exchangeColor(t.exchange))}>
+                            {t.exchange ?? "\u2014"}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           <Badge

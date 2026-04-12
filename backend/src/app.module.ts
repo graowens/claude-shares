@@ -11,6 +11,7 @@ import { BacktestModule } from './backtest/backtest.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { TranscriptsModule } from './transcripts/transcripts.module';
 import { StrategiesModule } from './strategies/strategies.module';
+import { GapScannerModule } from './gap-scanner/gap-scanner.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { StrategiesModule } from './strategies/strategies.module';
     SchedulerModule,
     TranscriptsModule,
     StrategiesModule,
+    GapScannerModule,
   ],
 })
 export class AppModule {}

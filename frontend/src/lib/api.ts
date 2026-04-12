@@ -49,6 +49,7 @@ export const getAccount = () => request<Account>("/account");
 export interface Trade {
   id: string;
   symbol: string;
+  exchange?: string;
   side: "buy" | "sell";
   quantity: number;
   entryPrice: number;
@@ -87,6 +88,7 @@ export const getPnl = () => request<PnlSummary>("/trades/pnl");
 export interface WatchlistItem {
   id: string;
   symbol: string;
+  exchange?: string;
   gapDirection: "up" | "down";
   targetEntry: number;
   stopLoss: number;
@@ -206,6 +208,41 @@ export const toggleStrategy = (id: number) =>
 export const deleteStrategy = (id: number) =>
   request<void>(`/strategies/${id}`, { method: "DELETE" });
 
+// Gap Scanner
+export interface GapScanResult {
+  id: number;
+  symbol: string;
+  exchange: string | null;
+  prevClose: number;
+  currentPrice: number;
+  gapPercent: number;
+  preMarketVolume: number;
+  ma20: number | null;
+  ma200: number | null;
+  trendDirection: string | null;
+  dailyContext: string | null;
+  selected: boolean;
+  scanDate: string;
+  createdAt: string;
+}
+
+export const runGapScan = () =>
+  request<GapScanResult[]>("/gap-scanner/scan", { method: "POST" });
+
+export const getGapResults = (date?: string) => {
+  const qs = date ? `?date=${date}` : "";
+  return request<GapScanResult[]>(`/gap-scanner/results${qs}`);
+};
+
+export const toggleGapSelect = (id: number) =>
+  request<GapScanResult>(`/gap-scanner/${id}/select`, { method: "PATCH" });
+
+export const getSelectedGaps = () =>
+  request<GapScanResult[]>("/gap-scanner/selected");
+
+export const confirmGapSelection = () =>
+  request<{ message: string; count: number }>("/gap-scanner/confirm", { method: "POST" });
+
 // Settings
 export interface Settings {
   maxPositionSize: number;
@@ -214,12 +251,84 @@ export interface Settings {
   maxDailyLoss: number;
   currency: "GBP" | "USD";
   maxConcurrentTrades: number;
+  dailyBudget: number;
+  dailyLossLimit: number;
+  dailyProfitTarget: number;
+  allowShortSelling: boolean;
+  exchanges: string;
 }
 
 export const getSettings = () => request<Settings>("/settings");
+
+// Historical gap scan
+export const runHistoricalGapScan = (date: string, symbols?: string[]) =>
+  request<GapScanResult[]>("/gap-scanner/scan/historical", {
+    method: "POST",
+    body: JSON.stringify({ date, symbols }),
+  });
+
+// Clear selected gaps
+export const clearSelectedGaps = (date?: string) =>
+  request<{ message: string }>("/gap-scanner/clear-selected", {
+    method: "POST",
+    body: JSON.stringify({ date }),
+  });
+
+// Backtest from gap scan results
+export interface BacktestFromGapsResult {
+  id: number;
+  symbol: string;
+  strategy: string;
+  startDate: string;
+  endDate: string;
+  totalTrades: number;
+  winRate: number;
+  totalPnl: number;
+  maxDrawdown: number;
+  params: {
+    scanDate: string;
+    stopLossPercent: number;
+    takeProfitPercent: number;
+    startingCapital: number;
+    finalEquity: number;
+    trades: Array<{
+      symbol: string;
+      side: string;
+      date: string;
+      entryPrice: number;
+      exitPrice: number;
+      pnl: number;
+      pnlPercent: number;
+      exitReason: string;
+      gapPercent: number;
+      shares: number;
+      equityAfter: number;
+    }>;
+  };
+  createdAt: string;
+}
+
+export const runBacktestFromGaps = (params: {
+  scanDate: string;
+  stopLossPercent?: number;
+  takeProfitPercent?: number;
+  startingCapital?: number;
+}) =>
+  request<BacktestFromGapsResult>("/backtest/run-from-gaps", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
 
 export const updateSettings = (data: Settings) =>
   request<Settings>("/settings", {
     method: "PUT",
     body: JSON.stringify(data),
   });
+
+// Exchanges
+export interface ExchangeInfo {
+  exchanges: string[];
+  counts: Record<string, number>;
+}
+
+export const getExchanges = () => request<ExchangeInfo>("/exchanges");

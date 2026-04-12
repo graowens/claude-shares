@@ -79,3 +79,16 @@ export function plClass(value: number): string {
   if (value < 0) return "text-red-400";
   return "text-muted-foreground";
 }
+
+export function exchangeColor(exchange: string | null | undefined): string {
+  switch (exchange?.toUpperCase()) {
+    case 'NASDAQ': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+    case 'NYSE': return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+    case 'ARCA': return 'bg-violet-500/20 text-violet-300 border-violet-500/30';
+    case 'BATS': return 'bg-orange-500/20 text-orange-300 border-orange-500/30';
+    case 'OTC': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
+    case 'AMEX': return 'bg-pink-500/20 text-pink-300 border-pink-500/30';
+    case 'CRYPTO': return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30';
+    default: return 'bg-zinc-500/20 text-zinc-300 border-zinc-500/30';
+  }
+}

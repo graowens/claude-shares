@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Alpaca from '@alpacahq/alpaca-trade-api';
+import axios from 'axios';
 
 @Injectable()
 export class AlpacaService implements OnModuleInit {
@@ -106,5 +107,49 @@ export class AlpacaService implements OnModuleInit {
 
   async cancelOrder(orderId: string) {
     return this.client.cancelOrder(orderId);
+  }
+
+  /**
+   * Fetch daily bars for multiple symbols in one call using Alpaca data API.
+   * Returns a map of symbol -> bars array.
+   */
+  async getMultiSymbolBars(
+    symbols: string[],
+    start: string,
+    end: string,
+  ): Promise<Record<string, Array<{ timestamp: string; open: number; high: number; low: number; close: number; volume: number }>>> {
+    const result: Record<string, any[]> = {};
+    // Alpaca multi-bar endpoint accepts up to ~200 symbols per request
+    const batchSize = 200;
+
+    for (let i = 0; i < symbols.length; i += batchSize) {
+      const batch = symbols.slice(i, i + batchSize);
+      const symbolsParam = batch.join(',');
+      try {
+        const resp = await axios.get(
+          `https://data.alpaca.markets/v2/stocks/bars?symbols=${symbolsParam}&timeframe=1Day&start=${start}&end=${end}&limit=10000&feed=iex`,
+          {
+            headers: {
+              'APCA-API-KEY-ID': this.config.get('ALPACA_API_KEY'),
+              'APCA-API-SECRET-KEY': this.config.get('ALPACA_API_SECRET'),
+            },
+          },
+        );
+        const data = resp.data.bars || {};
+        for (const [sym, bars] of Object.entries(data)) {
+          result[sym] = (bars as any[]).map((b: any) => ({
+            timestamp: b.t,
+            open: b.o,
+            high: b.h,
+            low: b.l,
+            close: b.c,
+            volume: b.v,
+          }));
+        }
+      } catch (err) {
+        this.logger.error(`Multi-bar batch ${i}-${i + batchSize} failed: ${err.message}`);
+      }
+    }
+    return result;
   }
 }

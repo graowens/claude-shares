@@ -8,6 +8,7 @@ import { capitolTradesRoute } from "./routes/capitol-trades";
 import { transcriptsRoute } from "./routes/transcripts";
 import { strategiesRoute } from "./routes/strategies";
 import { settingsRoute } from "./routes/settings";
+import { gapScannerRoute } from "./routes/gap-scanner";
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -18,6 +19,7 @@ const routeTree = rootRoute.addChildren([
   capitolTradesRoute,
   transcriptsRoute,
   settingsRoute,
+  gapScannerRoute,
 ]);
 
 export const router = createRouter({ routeTree });

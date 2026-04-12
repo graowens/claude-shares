@@ -10,7 +10,7 @@ import {
   bulkAddWatchlist,
   type WatchlistItem,
 } from "@/lib/api";
-import { formatCurrency, formatDateShort } from "@/lib/utils";
+import { cn, formatCurrency, formatDateShort, exchangeColor } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -237,6 +237,7 @@ function WatchlistPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Symbol</TableHead>
+                  <TableHead>Exchange</TableHead>
                   <TableHead>Gap</TableHead>
                   <TableHead>Target Entry</TableHead>
                   <TableHead>Stop Loss</TableHead>
@@ -252,6 +253,11 @@ function WatchlistPage() {
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">
                       {item.symbol}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={cn("border text-xs", exchangeColor(item.exchange))}>
+                        {item.exchange ?? "\u2014"}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge

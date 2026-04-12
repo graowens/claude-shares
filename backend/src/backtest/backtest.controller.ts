@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { BacktestService } from './backtest.service';
 import { RunBacktestDto } from './dto/run-backtest.dto';
+import { RunFromGapsDto } from './dto/run-from-gaps.dto';
 
 @Controller('backtest')
 export class BacktestController {
@@ -9,6 +10,16 @@ export class BacktestController {
   @Post('run')
   run(@Body() dto: RunBacktestDto) {
     return this.backtestService.runBacktest(dto);
+  }
+
+  @Post('run-from-gaps')
+  runFromGaps(@Body() dto: RunFromGapsDto) {
+    return this.backtestService.backtestFromGaps(
+      dto.scanDate,
+      dto.stopLossPercent,
+      dto.takeProfitPercent,
+      dto.startingCapital,
+    );
   }
 
   @Get('results')

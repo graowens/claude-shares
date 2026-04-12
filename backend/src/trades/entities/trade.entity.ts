@@ -38,6 +38,9 @@ export class Trade {
   @Column({ length: 50, nullable: true })
   strategy: string;
 
+  @Column({ length: 10, nullable: true })
+  exchange: string;
+
   @Column({ type: 'datetime', nullable: true })
   openedAt: Date;
 

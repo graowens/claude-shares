@@ -8,6 +8,7 @@ import {
   Landmark,
   FileText,
   Settings,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,20 @@ export function Sidebar() {
         <span className="text-lg font-bold tracking-tight">Scalper</span>
       </div>
       <nav className="flex-1 space-y-1 p-3">
+        {/* Extended Hours Gaps - primary pre-market action */}
+        <Link
+          to="/gap-scanner"
+          className={cn(
+            "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition-colors",
+            currentPath.startsWith("/gap-scanner")
+              ? "bg-emerald-500/15 text-emerald-400"
+              : "text-emerald-400/80 hover:bg-emerald-500/10 hover:text-emerald-400"
+          )}
+        >
+          <TrendingUp className="h-4.5 w-4.5" />
+          Extended Hours Gaps
+        </Link>
+        <div className="my-2 border-t border-border/50" />
         {navItems.map((item) => {
           const isActive =
             item.to === "/"

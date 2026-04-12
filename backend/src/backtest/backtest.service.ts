@@ -3,16 +3,21 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BacktestResult } from './entities/backtest-result.entity';
 import { AlpacaService } from '../alpaca/alpaca.service';
+import { GapScannerService } from '../gap-scanner/gap-scanner.service';
 import { RunBacktestDto } from './dto/run-backtest.dto';
 
 interface SimulatedTrade {
   date: string;
+  symbol?: string;
   entryPrice: number;
   exitPrice: number;
   pnl: number;
   pnlPercent: number;
   side: 'buy' | 'sell';
-  exitReason: 'stop_loss' | 'take_profit' | 'end_of_day';
+  exitReason: 'stop_loss' | 'take_profit' | 'end_of_day' | 'end_of_hour';
+  shares?: number;
+  gapPercent?: number;
+  equityAfter?: number;
 }
 
 @Injectable()
@@ -23,6 +28,7 @@ export class BacktestService {
     @InjectRepository(BacktestResult)
     private readonly repo: Repository<BacktestResult>,
     private readonly alpaca: AlpacaService,
+    private readonly gapScanner: GapScannerService,
   ) {}
 
   async runBacktest(dto: RunBacktestDto): Promise<BacktestResult> {
@@ -47,8 +53,9 @@ export class BacktestService {
       throw new Error('Not enough historical data for backtest');
     }
 
+    const startingCapital = dto.startingCapital || 10000;
     const simulatedTrades: SimulatedTrade[] = [];
-    let equity = 10000;
+    let equity = startingCapital;
     let maxEquity = equity;
     let maxDrawdown = 0;
 
@@ -116,12 +123,15 @@ export class BacktestService {
         }
       }
 
-      // Calculate P/L
+      // Calculate P/L using position sized from current equity
+      const shares = Math.floor(equity / entryPrice);
+      if (shares <= 0) continue;
       const multiplier = isGapUp ? 1 : -1;
-      const pnl = (exitPrice - entryPrice) * multiplier;
-      const pnlPercent = (pnl / entryPrice) * 100;
+      const pnlPerShare = (exitPrice - entryPrice) * multiplier;
+      const pnlPercent = (pnlPerShare / entryPrice) * 100;
+      const pnl = pnlPerShare * shares;
 
-      equity += pnl * 100; // assume 100 shares
+      equity += pnl;
       maxEquity = Math.max(maxEquity, equity);
       const drawdown = ((maxEquity - equity) / maxEquity) * 100;
       maxDrawdown = Math.max(maxDrawdown, drawdown);
@@ -130,10 +140,12 @@ export class BacktestService {
         date: currentBar.timestamp,
         entryPrice,
         exitPrice,
-        pnl: pnl * 100,
+        pnl,
         pnlPercent,
         side,
         exitReason,
+        shares,
+        equityAfter: equity,
       });
     }
 
@@ -157,6 +169,174 @@ export class BacktestService {
         stopLossPercent: stopLoss,
         takeProfitPercent: takeProfit,
         gapThresholdPercent: gapThreshold,
+        startingCapital,
+        finalEquity: equity,
+        trades: simulatedTrades,
+      },
+    });
+
+    return this.repo.save(result);
+  }
+
+  private getNextTradingDay(dateStr: string): string {
+    const date = new Date(dateStr + 'T00:00:00');
+    date.setDate(date.getDate() + 1);
+    const dayOfWeek = date.getDay();
+    if (dayOfWeek === 6) date.setDate(date.getDate() + 2); // Sat -> Mon
+    if (dayOfWeek === 0) date.setDate(date.getDate() + 1); // Sun -> Mon
+    return date.toISOString().split('T')[0];
+  }
+
+  async backtestFromGaps(
+    scanDate: string,
+    stopLossPercent?: number,
+    takeProfitPercent?: number,
+    startingCapital?: number,
+  ): Promise<BacktestResult> {
+    const stopLoss = stopLossPercent || 1;
+    const takeProfit = takeProfitPercent || 2;
+    const capital = startingCapital || 10000;
+
+    const selected = await this.gapScanner.getSelected(scanDate);
+    if (selected.length === 0) {
+      throw new Error(`No selected gap scan results for ${scanDate}`);
+    }
+
+    const tradingDay = this.getNextTradingDay(scanDate);
+    this.logger.log(
+      `Running gap-scan backtest: scanDate=${scanDate}, tradingDay=${tradingDay}, ${selected.length} stocks, capital=${capital}`,
+    );
+
+    const simulatedTrades: SimulatedTrade[] = [];
+    let equity = capital;
+    let maxEquity = equity;
+    let maxDrawdown = 0;
+    // Split capital evenly across selected stocks
+    const capitalPerStock = capital / selected.length;
+
+    // Market open 09:30 ET, first hour ends 10:30 ET
+    const startTime = `${tradingDay}T09:30:00-04:00`;
+    const endTime = `${tradingDay}T10:30:00-04:00`;
+
+    for (const gap of selected) {
+      try {
+        const bars = await this.alpaca.getHistoricalBars(
+          gap.symbol,
+          '5Min',
+          startTime,
+          endTime,
+        );
+
+        if (bars.length < 2) {
+          this.logger.warn(`Not enough intraday bars for ${gap.symbol} on ${tradingDay}`);
+          continue;
+        }
+
+        const gapPercent = Number(gap.gapPercent);
+        const isGapUp = gapPercent > 0;
+        const side: 'buy' | 'sell' = isGapUp ? 'buy' : 'sell';
+        const entryPrice = bars[0].open;
+
+        const stopLevel = isGapUp
+          ? entryPrice * (1 - stopLoss / 100)
+          : entryPrice * (1 + stopLoss / 100);
+
+        const targetLevel = isGapUp
+          ? entryPrice * (1 + takeProfit / 100)
+          : entryPrice * (1 - takeProfit / 100);
+
+        let exitPrice: number | null = null;
+        let exitReason: SimulatedTrade['exitReason'] = 'end_of_hour';
+
+        // Check each bar (skip the first since we enter at its open)
+        for (let i = 0; i < bars.length; i++) {
+          const bar = bars[i];
+
+          if (isGapUp) {
+            if (bar.low <= stopLevel) {
+              exitPrice = stopLevel;
+              exitReason = 'stop_loss';
+              break;
+            }
+            if (bar.high >= targetLevel) {
+              exitPrice = targetLevel;
+              exitReason = 'take_profit';
+              break;
+            }
+          } else {
+            if (bar.high >= stopLevel) {
+              exitPrice = stopLevel;
+              exitReason = 'stop_loss';
+              break;
+            }
+            if (bar.low <= targetLevel) {
+              exitPrice = targetLevel;
+              exitReason = 'take_profit';
+              break;
+            }
+          }
+        }
+
+        // If no exit triggered, close at last bar's close
+        if (exitPrice === null) {
+          exitPrice = bars[bars.length - 1].close;
+          exitReason = 'end_of_hour';
+        }
+
+        const shares = Math.floor(capitalPerStock / entryPrice);
+        if (shares <= 0) continue;
+        const multiplier = isGapUp ? 1 : -1;
+        const pnlPerShare = (exitPrice - entryPrice) * multiplier;
+        const pnlPercent = (pnlPerShare / entryPrice) * 100;
+        const pnl = pnlPerShare * shares;
+
+        equity += pnl;
+        maxEquity = Math.max(maxEquity, equity);
+        const drawdown = ((maxEquity - equity) / maxEquity) * 100;
+        maxDrawdown = Math.max(maxDrawdown, drawdown);
+
+        simulatedTrades.push({
+          date: tradingDay,
+          symbol: gap.symbol,
+          entryPrice,
+          exitPrice,
+          pnl,
+          pnlPercent,
+          side,
+          exitReason,
+          shares,
+          gapPercent,
+          equityAfter: equity,
+        });
+      } catch (err) {
+        this.logger.error(`Error backtesting ${gap.symbol}: ${err.message}`);
+      }
+    }
+
+    const totalTrades = simulatedTrades.length;
+    const wins = simulatedTrades.filter((t) => t.pnl > 0).length;
+    const losses = simulatedTrades.filter((t) => t.pnl < 0).length;
+    const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
+    const totalPnl = simulatedTrades.reduce((sum, t) => sum + t.pnl, 0);
+
+    const result = this.repo.create({
+      symbol: 'MULTI',
+      strategy: 'gap-scan-backtest',
+      startDate: scanDate,
+      endDate: tradingDay,
+      totalTrades,
+      winRate: Math.round(winRate * 100) / 100,
+      totalPnl: Math.round(totalPnl * 100) / 100,
+      maxDrawdown: Math.round(maxDrawdown * 100) / 100,
+      params: {
+        scanDate,
+        tradingDay,
+        stopLossPercent: stopLoss,
+        takeProfitPercent: takeProfit,
+        startingCapital: capital,
+        finalEquity: equity,
+        wins,
+        losses,
         trades: simulatedTrades,
       },
     });

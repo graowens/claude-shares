@@ -1,0 +1,647 @@
+https://www.youtube.com/watch?v=gddYspvW0_w
+I've made a little bit less than half a
+million dollars over the last nine
+months day trading stocks. This is my
+personal schwab brokerage account and
+I'm going to show you how to use the
+only two indicators I have ever used in
+my trading career. And by the end of
+this video, you're going to learn how to
+set up these indicators on your charts.
+How I make well over $1,000 per day
+using these indicators in my trading.
+And my goal is to completely change your
+perspective of how simple trading truly
+is. This isn't going to be a long video,
+maybe 15 to 20 minutes long, but I'm
+going to teach you as much as I possibly
+can in those 15 to 20 minutes to
+permanently change your trading forever.
+So, make sure you watch until the end of
+this video because if you do, it could
+be a game changer for you. You're going
+to be able to implement everything that
+I'm teaching you in your trading
+literally starting immediately. Let's
+hop right into the video. So, step
+number one, you're going to go to
+indicators on your trading platform.
+Right now, I am on tradingview.com.
+Now, for my own personal day trading, I
+use Think or Swim. Now, you're going to
+see tons of different complicated
+looking indicators. You're going to see
+crazy names like the Shandai Croll stop.
+You're going to see Elder Force index.
+You're going to see like Williams
+alligator. And you're going to be
+overwhelmed. you're going to be confused
+which one do you actually use and you're
+going to want to actually ignore all of
+these fancy sounding indicators and your
+goal is to keep things simple. So what
+you're going to do is look up moving
+average. Okay, you're going to look up
+moving average and you're going to see
+all these different types of moving
+averages. Now what you want to do is
+doubleclick on simple. You're going to
+click it once and then you're going to
+click it one more time. Once you do
+that, you're going to see these two
+moving averages pop up in the top left,
+and you want to hover over one of them,
+and you want to go to settings. And once
+you do that, all you need to change is
+you want to change the length of nine,
+change it to 20, and then press okay.
+Now go to the other one and do the same
+exact thing. Hover over it, go to
+settings, and from here, change the
+length to nine. And this time you're
+going to change it to 200.
+And voila. These are the only two
+indicators I have ever used in my
+trading. Now, I also use volume. I don't
+really consider that an indicator. And
+I'm going to make a separate video on
+that. So, make sure you subscribe to the
+channel to watch that video as well. But
+I've only ever used two simple moving
+averages. I think the simplest things in
+life are oftent times the most
+brilliant. I have never used MACD. I've
+never used stochcastics or VWAP or RSI
+or Elliot wave theory or Fibonacci. I
+keep it simple. And a lot of you guys
+are going to watch this video and be
+like, "Oh my god, two simple moving
+averages." Like, what? Like, I thought I
+thought you would be using all these
+complex tools. No, I don't use any fancy
+indicators. I keep it simple. And funny
+enough, these are two of the most
+powerful indicators you will ever use in
+your trading. And I'm about to show you
+why. So, first I'm going to teach you
+how to use the 20 MA. And then I'm going
+to teach you how to use the 200 MA. And
+I'm going to keep things as simple as
+humanly possible. But before I do that,
+I want to emphasize that you should
+never be solely relying off of
+indicators. Indicators are meant to
+complement your trading. They should
+never drive your decision making in the
+markets. And this is one of the biggest
+mistakes that I see beginner traders
+make. They have like three, four, five
+different indicators on their charts.
+All of those indicators are fancy
+looking. Their charts look complicated.
+So, the trader feels like they're doing
+something right because everything looks
+complex. It looks sophisticated. And
+next thing you know, those indicators
+are all saying different things. And the
+trader doesn't know which indicator to
+actually follow. And that trader goes
+into what's called analysis paralysis
+where one indicator is telling them to
+buy. Another indicator saying it's
+bearish and to sell. Another indicator
+saying there's no momentum and it's
+sideways. And then the trader doesn't
+know what to do and they end up making
+the wrong decision and they end up
+doubting their own judgment or doubting
+their own conviction. And that's exactly
+what you want to avoid. And that's why I
+like to keep things simple. I like to
+use two simple moving averages. You
+know, the reason I'm able to make money
+is because I keep it simple. And these
+moving averages complement my ability to
+read price action in the markets. Okay.
+So, the first thing that you need to
+understand about the 20 MA is that it is
+the ultimate trend following tool in
+existence. And as a trader, I want to
+trade in the direction of the trend. I
+want to trade in the direction of where
+price is going. And in order for me to
+trade in the direction of price, I need
+to establish what the trend is. And the
+20 EMA helps us do that. So, I want to
+see the 20 MA either trending higher or
+I want to see it trending lower. Now,
+obviously, if it's in an uptrend, I want
+to see it trending higher. If price is
+in a downtrend, I want to see it
+trending lower. Now, you want to ignore
+the 20 MA. And by the way, the 20 MA,
+like a moving average, it's just a line.
+That's all it is. It is just a line that
+finds the average price of the last 20
+days. Now, if this was like the 100
+period moving average, it would find the
+average price of the last 100 days. If
+it's the 200 MA, which I'm about to talk
+about in a few minutes, it's the average
+price of the last 200 days. So, the 20
+MA is kind of like a mediumterm moving
+average that I just love to use. It is
+incredibly powerful, as you're going to
+see in this video. Now, we want to see
+it trending. When the moving average,
+when the 20 MA is flat, that's when it
+loses its effectiveness. It's not useful
+for us. So, we don't want to see flat
+moving averages. In fact, a flat 20 MA
+could suggest that that stock or that
+crypto or whatever you are trading
+actually lost momentum. If a stock or
+whatever has momentum, you're probably
+going to see either a rising 20 MA if
+it's an uptrend or a declining 20 MA if
+it's a downtrend. So, that's an really
+easy way that you can immediately tell
+what the trend is or where the trend is
+going, whether the moving average is
+rising or declining or whether it's
+flat. And when it's flat, it has no
+momentum and prices are sideways. Now,
+if it's a rising 20 MA, what we want to
+see is this moving average under price
+and trending higher. Okay? And oftent
+times during a bullish uptrend, you will
+see prices literally trade off of the 20
+MA. Prices will literally retrace and
+consolidate into the 20 MA. And every
+time prices come close to or touch the
+20 MA, that could present buying
+opportunities. Okay? And we're about to
+look at a ton of examples, but that's
+the premise. The moving average is
+rising. It is under price and it's with
+it's an uptrend. And we see prices
+literally trade off of that moving
+average where they will touch it and
+bounce, touch it and bounce or
+consolidate into it and continue higher.
+Now, the same thing applies if it's a
+downtrend except the moving average we
+want to see it over price trending
+lower. So, we get a move down, we
+retrace into the 20 MA, move down,
+retrace into the 20 MA, move down,
+retrace, move down, retrace. And every
+time we get that retracement, that gives
+us an opportunity to potentially go
+short. So, using the 20 MA, it will
+allow us to essentially enter into
+established uptrends or established
+downtrends. And as a trader, I like to
+go in the direction of price. A lot of
+people tend to try to go for reversals.
+Why? Reversals and picking tops or
+bottoms is difficult. Yet, so many
+beginners kind of gravitate towards that
+strategy. It is far easier trading in
+the direction of the trend. So, that's
+what I'm looking for. A rising 20 MA
+during an uptrend, and I'm looking for
+prices to trade off of the 20 MA. And
+the same thing applies in a downtrend,
+but the opposite. The 20 MA is over
+price trending lower. And every time we
+see a retracement or a consolidation
+into the declining 20 MA, that gives us
+an opportunity to go short. And
+remember, we don't want to see flat 20s.
+A flat 20 MA suggests lack of momentum
+and it suggests that prices are
+sideways. So, here's a great example of
+exactly what I just talked about. This
+is the 20 MA, this thick blue line. And
+what do we have here? We have an
+uptrend. We have higher highs, higher
+lows on the charts. And you could see
+that the 20 MA is rising. It is under
+price. And look how well prices respect
+this 20 MA. Prices are using the 20 MA
+almost as support where whenever we
+retrace or whenever we consolidate into
+that 20 MA, we bounce and we continue
+the uptrend. This is exactly what I am
+looking for. rising 20 MA with an
+established uptrend. And same thing
+applies if it's a downtrend. This is the
+20 MA right here. It's overpriced. It's
+trending lower. And you could see we
+have a consolidation into the declining
+20 MA drop. Consolidation into the 20 MA
+drop, right? And look at this. It
+literally perfectly touched this 20 MA
+and that's when we got the breakdown. We
+retraced, didn't quite touch the 20,
+kind of got close to it. Another
+breakdown. And this is what I'm looking
+for, established uptrends or downtrends.
+And I like to use the 20 MA as a
+location of where I'm looking to go long
+if it's an established uptrend or I'm
+looking to go short if it's an
+established downtrend. Finally, we also
+use the 20 MA to measure what's called
+extension. Extension is the distance
+between price and the 20 period moving
+average. So, you could actually use the
+20 MA to measure how overbought a stock
+is. And I don't really like to use that
+word overbought. I like to use extended.
+So, by looking at the distance between
+price and the 20 MA, I could tell
+whether I want to get in or I could tell
+whether I even want to go for a reversal
+where sometimes prices are so far away
+from the 20 period moving average that I
+know that it's going to revert back to
+the mean and I'll actually go for a
+reversal setup. This also gives me
+information where I know I'm not going
+to go long up here because we're so far
+away from the 20 period moving average.
+it is way too extended. Finally, let's
+talk about the 200 period moving
+average. And this is actually even
+simpler. So, what we're looking for is
+for a flat 200 period moving average.
+The 20 EMA, we wanted that to be
+trending, whether it's uptrending or
+downtrending. And we don't want the 20
+MA to be flat. It's the opposite for the
+200. We want the 200 period simple
+moving average to be relatively flat.
+And the 200 MA could act as a ceiling
+for price whenever prices are trading
+below it. It could also act as a floor
+for prices whenever prices are trading
+above it. So what does that mean? Let's
+say you have a bunch of price action
+right here. This 200 MA could act as
+resistance for this price action where a
+lot of time prices will go to the 200
+and bounce from it. Go to the 200 and
+bounce from it. So, it could actually be
+a resistance area um for prices if
+prices are below the 200. Now, the same
+exact thing applies if it's support. If
+prices are trading above it, let's say
+you have a bunch of price action. This
+200 MA can act as support for price
+where prices will actually bounce from
+it and it's literally like a floor for
+price action. Now, this setup is quite
+rare. However, I do want to mention it.
+Every now and then, you'll get what's
+called a squeeze play where you have a
+flat 200 period moving average and then
+you have a 20 period moving average that
+is rising and going through this 200.
+And what you'll sometimes notice is
+prices will actually oscillate between
+the two where it's going to use the 200
+as a ceiling, as resistance, and it's
+going to use this 20 MA as support. And
+they'll continue to oscillate and
+oscillate and oscillate and squeeze
+until the point where it can't squeeze
+anymore, and it's just going to break
+out. And these setups are quite rare.
+However, they're extremely powerful. So,
+you want a flat 200 MA rising 20 MA
+that's going through the moving average.
+And you want to see prices oscillate
+between the two until eventually they
+can't, you know, there's no more room to
+oscillate and then they break out. And
+this honestly works better for like
+swing trading. So, I'd look at the daily
+or weekly time frame for this. If you're
+enjoying this video so far, I have
+hundreds of hours of free education
+online, not only on my YouTube channel,
+but I also have a free 10 plus hour
+trading course that is genuinely better
+than most paid courses on the internet.
+You could find my free course in the
+description of this video and combine my
+free education in my course with
+everything that I teach also on my
+YouTube channel. And if you are someone
+who is a little bit more serious, you're
+looking to really become a full-time
+trader and you're looking for more
+hands-on mentorship, I do personally
+coach and scale traders from zero to
+making 510 all the way up to $50,000
+uh trading per month where I take you
+under my wing and you trade live with me
+every single day. So, if you're looking
+for something a little bit more serious,
+you could apply for my mentorship in the
+description of this video. All righty,
+let's look at some fantastic examples on
+how you could apply the 20 and the 200
+MA into your trading. And I'm going to
+give you my thought process on how I
+apply it in my own trading. And by the
+way, these are not like cherrypicked
+examples. These are all stocks that I
+was watching or that I traded this past
+week. Like this uh KDP, this is CUREG.
+This had an overnight gap down yesterday
+where it gapped from $35 and the next
+day it opened at 3250. And notice how we
+gapped directly below the 200 and how we
+open below all of this support. So I was
+going into yesterday with a bearish bias
+and I actually really like gaps that
+open below the 200. But let's take a
+look at the fiveinut time frame. This is
+one of the main time frames that I use.
+And look at how well prices are
+respecting the 20 MA on the five,
+especially as soon as the 20 MA starts
+to actually establish a downtrend. As
+soon as the 20 MA is trending lower
+right here, basically notice how well
+prices are respecting the 20. So right
+here, this is a potential short
+opportunity directly under the base.
+Dropped, kind of based into the five,
+not quite dropped again. Look at this.
+Consolidated directly into the 20 and
+the five. Next day we gap down a little
+bit and continue that downtrend. Now
+this is the 5minut. Let's look at the
+two-minut especially today. And this is
+going to be shocking but look at this.
+Look at how well prices are respecting
+the 20 MA on the two-minut. I mean every
+time it hits the 20 MA here, here right
+here, right here, right here. every time
+it hits the 20 MA, it ends up dropping.
+And you could have literally went short
+every time prices hit the 20. And it
+would have worked for this absolute
+beauty of a power downtrend. And this is
+why I used the 20 during established
+downtrends. Notice how the 20 MA is
+trending lower very, very strongly. If
+we look at the 15, it's basically the
+same thing. Um, where the 20 MA is
+trending lower. However, there's a
+little bit of distance between price and
+the 20 MA. So, the 20 MA isn't being
+like fully respected on the on the
+15-minute chart. From there, you go to
+the smaller time frames to find your
+entries, but unbelievable
+daily gap that led to a beautiful
+downtrend where you could use the 20 MA
+for your entries to capitalize on this
+trend. Let's look at the BNS. This is a
+random stock that popped up today. This
+is the Bank of Nova Scotia. Um, and
+stemming back all the way from 2024 when
+this uptrend kind of reversed, you could
+see that we entered into a downtrend on
+this stock. And this is the daily time
+frame, by the way. Look at how well
+prices are respecting the 20 MA on this
+downtrend. The 20 MA is over price,
+trending lower. We drop, retrace into
+the 20, drop, retrace into the 20. Here
+we actually gapped down like 8% and it
+gapped right into the 200 MA on the
+daily time frame. So this 200 MA acted
+as a floor for price. It acted as
+support for price. We gapped right into
+it. Instantly got bought then retraced
+into the 20. Hit it perfectly. Dropped
+again. Hit it perfectly. Dropped. And
+then right here the trend reversed and
+we went into an uptrend. And you could
+see for yourself. Look at how well
+prices are respecting the 20 MA. I mean,
+I don't even need to explain it. It's
+literally obvious and it's simple.
+That's exactly why I use the 20 and the
+200 MA. Even here, we had a gap up
+today. Literally today, we gapped up 2%
+on a really bullish chart, really
+bullish trend on a nice gap up. Go to
+the 15minute time frame to find a
+potential setup. And even on the 15,
+look at how well prices are respecting
+the 20. We have a nice rally uh four bar
+red bar pullback. Nice little buy setup
+here. We kind of move up a little bit
+right into the 20 and then we take off
+and make new highs. And this is why I
+use the 20 and the 200 on the intraday
+time frames and even on the larger time
+frames because they're simple and they
+allow me to understand what the trend
+is. When I look at this chart, I know
+exactly what's going on. established
+downtrend, then an established uptrend,
+and I know where I could potentially get
+into the trend using the 20 period
+moving average. Let's take a look at
+this RR, which had a really nice
+breakout the last couple days. But let's
+go back to 2024. And this is a really
+good example of a squeeze play where we
+have a rising 20 period moving average,
+flat 200 period moving average. You
+could see prices hit the 200, then hit
+the 20, then hit the 200, kind of
+oscillated back and forth. It's not a
+perfect example, but once it broke out,
+it really broke out. And this thing
+rallied like over 500%. Which is insane.
+So, that's a decent example of a squeeze
+play, but that's not even what I want to
+show you in this example. Look at how
+well the 200 MA is acting as support and
+as a floor for this stock. Like, we hit
+the 200 here. Instantly, we bounce. Then
+we kind of chop around. We retest to
+200. We bounce here. We actually almost
+break down through the 200. That's
+instantly rejected. We move right back
+up again. We try to break through the
+200, rejected again. Right here we try
+to break through the 200 to the
+downside, rejected. And then this time
+it led to a 62% move to the upside. And
+this is why I like to use the 200 MA.
+Whenever prices are above it, it acts as
+a floor. It acts as support. And by the
+way, this is the daily time frame. Let's
+look at a good example of using the 20
+MA during the intraday time frame. So,
+this stock had a very minor gap up. This
+was just a few days ago. It gapped up
+2%. So, it opened higher by 2%. It had a
+really nice green day. I'm seeing the 20
+MA on the daily time frame is starting
+to trend higher. It's under price. So, I
+went into this day with a bullish bias.
+And just take a look at this fiveinut
+time frame. just beautiful uptrend and
+it's beautifully respecting the 20 MA
+where we had a nice breakout here. We
+moved up, retraced to the 20, kind of
+chopped around, another move up, retrace
+to the 20, move up, retrace to the 20,
+move up, retrace to the 20. And it's
+just respecting the 20 MA almost
+perfectly. And every time it hit the 20,
+that was actually an opportunity to
+potentially go long. and just a
+beautiful uptrend with the 20 MA under
+price trending higher. Let's look at
+another example where we combine using
+the 200 MA on the daily time frame and
+then we use the 20 MA on the intraday
+time frame. So this MAT gapped from like
+2018 and the next day it opened 6% lower
+at around 1890. Notice how we gapped
+directly below the 200. Literally
+directly below it. We didn't gap into it
+where it would act as support. We gapped
+right below it and we also gapped
+underneath a lot of this support as
+well. So beautiful gap down and from
+there we go to the intraday time frames
+to find a potential setup. So off the
+five here I mean again you could see how
+well prices are respecting the 20 MA.
+The best setup was right here. Stop loss
+above basically. So this is the five.
+Even if we look at the twominut again,
+every time prices hit the two minute, 20
+MA, we get a move lower. We drop retrace
+to the 20 MA and the two drop. Then
+right here, notice, check, check this
+out. Right here, we attempt to break
+above the the 20. We attempt to kind of
+end this downtrend, break over the 20.
+That was rejected. Then we continue to
+base the 20 acted as resistance and
+boom, we got another breakdown again
+right here. attempt to move past the 20
+breakdown, attempt to kind of go through
+the 20, breakdown, and you could see how
+well prices respect the 20 MA during
+this established downtrend on multiple
+time frames. Even if we look at the 15,
+right? It's usually better to look at
+the smaller time frames for your entries
+into these day trades, but even on the
+15, 20 MA is over price trending lower,
+confirming that bearish downtrend. This
+is Coinbase from a few weeks ago. We
+have a rising 20 MA under price. We have
+a consolidation into that rising 20 MA.
+200 MA is directly above. We gap above
+the 200 around 12% to the upside. Gap
+above the 200 triggering this base
+breakout on the daily time frame. 20 MA
+is under price. You go to the 15minut
+time frame for a potential setup and
+beautiful uptrend. Let's look at the
+five. And you could see, look at that
+five. how well prices are respecting the
+20 MA. We have that initial move up. We
+consolidate directly into the 20
+breakout over the base. Nice move up,
+retracement into the 20. Look at how
+well it's respecting the 20 and then we
+have another leg higher. We retrace
+another move up. So, you could see how
+well prices respect the 20 MA. And this
+is exactly why I use it on multiple time
+frames. Let's finish off this video by
+looking at the S&P 500, the SPY. So this
+bottomed out in April and since then we
+have been up only and during this
+uptrend what do you know? Look at how
+well prices are respecting the 20 MA
+even on the spy. So we have a nice move
+up retrace into the 20. Nice move up
+here. We consolidate into it. Then we
+have another breakout from the 20. We
+try to retest it on this tail. Instantly
+we move up here. We actually broke under
+the 20. This was a few weeks ago. We
+broke under the 20, instantly rejected.
+Have a another nice move higher. Here we
+have a retracement. Nice buy setup into
+the 20. Boom. And now it looks like the
+spy wants to continue higher. We could
+even look at like crypto. Let's take
+Ethereum. Look at how well Ethereum is
+respecting the 20 MA over the last few
+months. We have a rising 20 MA under
+price here. It kind of broke below,
+instantly rejected, and we had a nice
+move higher. We retraced right into the
+20. literally hit the 20, instantly we
+popped another red bar, hit the 20,
+boom, the next day we have a nice green
+bar. This was on uh the Jackson Hole um
+Jerome Powell speech. Then we retrace,
+hit the 20, boom. Um today, literally
+another green bar. Um even if you look
+back just a few months ago, I bought a
+ton of Ethereum right here because
+I saw that the 20 MA started to
+transition higher. It's curling up. The
+20 MA is under price trending higher. We
+have a nice move up based into the 20.
+This was a beautiful breakout and what
+do you know? It hit target at the 200.
+So the 200 acted as a ceiling for
+Ethereum where it hit the 200 retraced.
+Hit the 200 retraced. Hit the 200
+retraced. Hit the 200 retraced. Here we
+broke through. We kind of had a fake out
+and then a fake out to the downside. 20
+MA is flat so it's not that useful. And
+then as soon as the 20 MA begins rising
+and trending under price, that's when
+Ethereum starts respecting it and it
+resumes or resumed the uptrend. And I'm
+still expecting much higher prices for
+Ethereum. And that is exactly why I use
+the 20 and the 200 MA for every single
+one of my charts that I look at. I like
+to keep it simple, guys. All I use are
+two moving averages, the 20 and the 200.
+And by keeping it simple, that's what
+allows me to make money. So hopefully
+this could be transformative for your
+trading and hopefully this will help you
+keep it simple. So make sure you
+subscribe to the channel if you enjoyed
+this video. Leave a comment if you found
+it valuable. Leave a like. That's going
+to help the YouTube algorithm. And
+hopefully you learned a lot and I will
+see you on the next video. Thank you
+very much.

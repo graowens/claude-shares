@@ -28,6 +28,9 @@ export class WatchlistItem {
   @Column({ type: 'decimal', precision: 12, scale: 4, nullable: true })
   takeProfit: number;
 
+  @Column({ length: 10, nullable: true })
+  exchange: string;
+
   @Column({ type: 'boolean', default: true })
   active: boolean;
 

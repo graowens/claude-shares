@@ -1,0 +1,357 @@
+https://www.tradingview.com/screener/
+Extended Hours
+Pre-market GAP %
+https://www.youtube.com/watch?v=xvHsPbTPtL0
+I've made over half a million dollars over the last 12 months day trading stocks that I'm going to teach you the
+very first scalping strategy that my father taught me five years ago that I still trade every single day. It's
+stupid simple. It's consistent and it's so intuitive that even a beginner trader can master it. In this video, I'm going
+to break down why this strategy works, how I make well over $1,000 a day trading it, and the three simple steps
+that you need to execute the strategy. This isn't going to be a long video, maybe 15 to 20 minutes, but by the end
+of it, you will have a strategy that you can immediately implement into your trading and a nobullshit guide on
+exactly how I use it every single day to make money. By the way, I want to be as transparent as possible. This is my
+Charles Schwab brokerage account. And if you think this is a screenshot or Photoshop, I'm going to go ahead and
+refresh the page. And as you can see, I've made a little bit over $548,000
+over the last 12 months day trading stocks. And the reason I'm showing you this is to be as real and as transparent
+as possible and to show you that I actually trade this strategy every single day and I make money from it. I
+don't want to waste any time. So, let's hop right into this video. And I want you to be locked in because I'm going to
+teach you everything that I know about this strategy over the next 20 minutes. And I'm going to teach you everything
+that my father taught me about this strategy 5 years ago. And he was my trading mentor, by the way. And I want
+to make this video as simple as possible so you can understand and execute it regardless if you've been trading for 10
+years or for 10 days. And right off the bat, I want to think out loud for a
+second as day traders. What types of stocks do we want to focus on? Well,
+right off the bat, at least for me, I want to focus on stocks that are showing
+clear momentum, that are trending in a particular direction, that are doing
+significant volume. I don't want to trade stocks that are just sideways and not really moving and not showing
+momentum and not doing any volume because I can't make money if the stock doesn't move. So, I want to focus on
+stocks that have a high probability of moving 20%, 50%, or even 100% in a
+single day. Maybe maybe even a couple of hours. Right? So, every single morning before the market opens at 8:30 a.m.
+Eastern, sometimes a little bit earlier, I sit down in my office and I create my pre-market watch list. And I find stocks
+that have a high probability of having momentum, have a high probability of
+trending in a particular direction, and I create my pre-market bias. And then
+when the market opens, I execute on that bias. But the first step is to create
+that list of stocks that have a high chance of actually moving and actually
+making me money. So you you're probably wondering, how do I do that? What's the scan process? How do we actually execute
+on these stocks? And why do we choose these types of stocks? Well, that's exactly what you're going to learn in
+this video. And specifically, I focus on gaps. And in this video, we're going to
+be exclusively focusing mostly on gap ups. And if you're confused, what is a
+gap? I don't know what that is. Well, a gap is an overnight change in price. So,
+for example, let's say a stock closed at $10 yesterday when the stock market
+closed at 400 p.m. Eastern, and then the next morning at 9:30 a.m. Eastern, that
+stock opened at $20. Well, that $10 difference in price that occurred
+overnight is known as a gap. And it literally leads to a gap on the price
+charts. And you don't really need to be concerned why a stock is gapping. What
+we care about is what that overnight change in price does to the charts. And
+if you're wondering, okay, why do stocks gap in the first place? Well, you have to keep in mind that the stock market
+opens at 9:30 a.m. Eastern and then closes at 400 p.m. Eastern. And during
+the extended hours, whether that's in the post market or the pre-market, well, there are still, you know, traders or
+investors that are buying and selling. So sometimes when a company reports earnings after the close, well, the
+company's stock changes in the post market and then that price is reflected
+the next morning when that stock opens. So here's a really great example. If
+you're still having trouble conceptualizing what a gap is, I'll just show you an example of it. So, Frog, for
+example, this was a gap on Friday. This was a trade that I took. This stock closed the previous day on Thursday at
+$47.26. The next day, it opened at $56.38.
+So, this was a 20% gap up or so, around 20%. So, you could literally see the gap
+in the price charts, right? You could literally see this gap in price. And I'll show you an example of a gap down
+as well. This was actually just from a few days ago. This was on laser, right?
+So laser the previous day closed at 210 and then the next day it opened at 163.
+You could literally see this overnight change in price and this was a 23%
+gap down. So that is what a gap is. It's an overnight change in price. And that's
+exactly what I focus on in the pre-market. Those are the types of stocks that I scan for. So, if it's a
+gap up, it's an overnight change in price to the upside. And if it's a gap
+down, it's an overnight change in price to the downside. And these gaps, these changes in price can occur not only
+because of earnings. They could occur because of news within the company, because of a crazy event within the
+company, because of macroeconomic data dropping, because of the president literally tweeting something on his
+Twitter. And that could be a reason a stock changes in price overnight. There's a lot of different reasons why
+stocks gap, but like I said, we don't really care about the reason. We care about what that gap, what that change in
+price does to the price action. And at this point, you're probably wondering, okay, first step, how do I scan for
+these gaps? Where do I go? So, I'll show you a couple of different resources. So, off the bat, a free resource that you
+could use is tradingview.com. You don't need to pay for an account. So, just go to tradingview.com.
+And if you go to products and you go to screeners, you can click on stocks. And
+once you land on this page right here, you can click on extended hours. Those
+are hours right after the market closes. Okay? And you're going to see an option here that says pre-market gap
+percentage. If you click on that, you'll be able to sort it either in ascending order or descending order. So, if you
+click on descending order, that will show you all of the gap ups in order.
+So, this was the biggest gap up on the MSGM on Friday. It gapped up 128%. The
+TSC is the next one at 59%. The VME is the next one at 59%. And you can go down
+and you basically write down all of these stocks on your watch list on your trading platform. And once you have them
+on your watch list, from there you look at them. You analyze the gap and you try
+to understand and pick out which gaps you want to focus on for when the market
+opens. And I'll show you how to do that in a little bit. Okay. If you also click
+on sort ascending, this will show you all the gap downs, the overnight changes in price to the downside. So SND had a
+60% gap down. Um the ELDN, this is actually something I traded and made money on on Friday. This gapped 43% gap
+down, right? And this was actually one of my biggest winners. And then you of course put all of these on your watch list and then you find your favorite gap
+down. So you could do this on Trading View. You could also do this on a website called Market Chameleon. So if
+you just look up market chameleon.com and if you go to stocks and if you click on pre-market trading, it'll actually
+give you like a mini report here of the top gainers in the pre-market, the top
+Whoops. decliners in the pre-market and it'll also show you the most actively
+traded stocks in the pre-market. So, I kind of use a bunch of different resources and that's how I create my
+list every morning. But, I would say my primary way of scanning for gaps every single day is actually just using my
+platform, which is Think or Swim. And on your watch list, you're going to see this little column here. And if you
+actually rightclick it and press on customize, you could add this function called mark
+percent change. So if you look that up, mark percent change. If you click on it,
+you'll be able to add this to your watch list. And then you could actually sort it by pressing that button right here.
+Let me do this. You could see mark percent change. If you click on it, right, it'll sort it here by, you know,
+the gap downs where it'll show you the biggest gap downs. And then if you uh click on it again, it'll show you the
+biggest gap ups. So, by using different resources, this is how I essentially
+create my gaps list every single morning. So, this is something that you could program on essentially any type of
+platform. So, you don't have to use the ones that I just showed you. You could program this on your own personal
+scanner. What you're really looking for is the percentage difference between yesterday's closing price and the
+pre-market price the next morning. And you might be wondering, Emanuel, okay, I
+know how to scan for gaps. I know how to create the pre-market watch list, but I'm looking at over a 100 stocks. Am I
+supposed to focus on all of these stocks when the market opens? And the answer is no. You want to find the highest quality
+gaps because there are certain criteria that we look for that separate a high
+quality gap from a lowquality gap. And I'm about to teach you these criteria. So this is what you want to look for
+every single morning. And there's three simple rules that you're going to
+follow. And for this strategy, we are going to primarily focus on gap ups.
+We're focusing on overnight changes in price to the upside. And I can make a different video where we focus on
+overnight gap downs. But for this video, we're focusing on gap ups because I have seen so many just amazing gap ups over
+the last few months. And I want you to be equipped with this strategy. So the first rule that we look for is we want a
+gap up that ends a downtrend. So what does that mean exactly? And by the way,
+every morning when you're looking at these stocks, you're looking at these gaps. You're going to be looking at the
+daily time frame. Okay? That's the primary time frame that we use to read gaps. So, let's say we have a downtrend
+on the daily time frame. And let's say this stock closes right here the
+previous day. We want to see gaps that end this downtrend. Why do we want to
+see that? Well, think about it. It's a downtrend, right? So, the bears are in control. The sellers are in control.
+There are traders or investors who shorted it here, who shorted it here. Maybe they shorted it here as well. They
+shorted it right here. We want to see a gap that ends the trend and that
+surprises all of those sellers. So, let's say we close right here. All of
+these sellers that participated in this move lower, they're making money. And
+let's say the next morning it gaps right here, right? It has an overnight change
+in price right here. Well, how do you think all of these sellers are going to feel waking up the next day and seeing
+that their position is now underwater? They're now losing money on a trade that
+they were making money on literally the day before. Well, a lot of those sellers are going to be shocked. And that's
+exactly what we need for this strategy to be effective. We want overnight
+changes in price that end longerterm downtrends because that's a powerful
+piece of price action. Right? If it's ending a longer term trend, the chances that that stock is going to have tons of
+momentum that day is very high. And that's when we want to have a bullish bias and look to go potentially long.
+And if this still kind of sounds confusing or maybe you want to actually visually see what this looks like, I'm
+about to show you a bunch of examples, but first I want to go over these criteria. So that's the first criteria
+that we look for. The second criteria that we want to look for, and I tried to make this super simple. We want to see a
+gap up that gaps above resistance that clears a critical resistance area. So
+what does that look like? So, let's say maybe we have an uptrend, right? We have an uptrend. The stock is trending higher
+and all of a sudden this stock starts to consolidate and it goes sideways for a
+while and let's say it closes right here. We want to see gaps that clear
+above this resistance area that that clear the highs of this consolidation.
+Right? So, let me kind of show you what that looks like. Let's say this is a clear resistance area. Right? We made a
+high. We made a high here. We hit it again here. We hit it again here. Right? Every time we hit this resistance, we
+went down. We want to see it open and gap above that resistance area. And
+ideally, we want to see it gap directly above. We don't want to see it gap all the way up here where it's really far
+away from resistance. We want to see it gap directly above resistance. Maybe here, maybe here, maybe here max. Right?
+And the more it gaps up, the less powerful it is. We want to see it gap directly above resistance because if you
+think about it, this overnight change in price, this gap up is triggering a
+longerterm breakout. It's triggering a breakout on the weekly uh monthly and daily time
+frame. So these are the types of gaps that we want to look for that end trends or surprise sellers, right? or trend or
+gaps that clear above resistance and are triggering uh larger term breakouts. And
+our bias of course is to go long. By the way, I have hundreds of hours of free education on the internet, not only on
+this YouTube channel that you're watching right now, but I also have a free 10 plus hour trading course that is
+genuinely better than most paid courses on the internet. It will help build the foundation for your trading success. And
+if you're someone who's looking for something a little bit more serious, you're looking to really advance your
+trading, I do personally help scale and coach traders from zero to consistently
+profitable where I take my students under my wing and they trade live with me every single day. So if you are
+looking for handson mentorship, you could apply for my mentorship program also in the description of this video.
+Let's go ahead and look at some amazing examples of this. And these are all stocks that I took from my pre-market
+watch list over the last 1 month. So these are all recent gaps that performed
+incredibly well. A couple weeks ago, I saw the Benf in the morning and this
+stock gapped from 48 and the next morning it opened at around
+85 cents, which was a 75% gap up. And notice how this stock kind
+of ended this mini little downtrend, right? It had a nice pop. This was also
+a gap up. It gapped from 36 cents to 63 cents. Had a really nice move higher,
+then kind of chopped around a little bit and then it basically just trended lower for a few weeks and then all of a sudden
+this stock ended this trend lower and it gapped up to around 84 cents. And look
+at the move that it had that day. Look at the momentum. You could see the big volume spike as well. This stock did
+tons of volume this day. I think it did, you know, tens of millions of shares, had tons of momentum, and it trended
+higher essentially the the entire day. It literally closed almost at the highest. It closed at 149. And this
+stock moved up over 76% in a single day. Next, let's take a look
+at the WGRX. This is also a stock from my pre-market watch list a couple of weeks ago. And this was just an insane
+trade. I mean, take a look at this. So, this stock had been in a very
+established downtrend from essentially early September, just trending lower,
+trending lower, and all of a sudden it bottomed right here, and it gapped from 39
+all the way to 87 cents. So, that was 122%
+gap up. And this effectively ended this trend lower, right? This thing was going lower. It looked lower. Everyone who was
+in this short here, here, here, they're all making money. And then all of a sudden, it gapped up. Had insane volume
+that day. And this thing ended up running from 88 all the way to $1.46,
+which was a 65% move up. Now, obviously ended up closing at 114. However, the
+initial runner was just an insane play. And again, what did it do? It ended this
+downtrend. And I've seen a lot of these lowerpric stocks do this recently. And this is why I wanted to create this
+video where I've seen uh lowerpric stocks that trend lower. They have big gap ups and they just go on insane runs
+that day. I'm sure you guys have heard of Beyond meets going absolutely crazy over the past few weeks. But what was
+the catalyst of the Beyond? Well, if you go back to this first day right here,
+this was the first day where Beyond started to run. What did it do? It gapped from 64 cents to around a 101 the
+next day. It was a 58% gap up. And this wasn't that much of a huge downtrend,
+but this was certainly trending lower. And then all of a sudden, we gapped up. And I traded it on this day. This was my
+biggest winner that day. And it was also my biggest winner the next day. But it gapped up. It ended this little mini
+trend lower, right? Gapped to 102 and then it went on I mean an insane run the
+next few days. I actually did not hold it overnight. I don't usually hold my day trades overnight ever. But if I did
+it would have been amazing, but that's just not within my system. And then the next day it actually gapped another 60%
+up and then another it went on another insane run all the way to 380. And then the next day went absolutely crazy. And
+on this day it was just untradeable for me. I couldn't trade it. And then [snorts] um I also scalped it on this day. This day was really readable off of
+order flow, off of level two data. So I made really good money on it this day. But ultimately the catalyst of this
+entire move was this initial gap up that ended this mini trend lower. And you
+know I was able to make money on this day on this day and on this day as well. Let's look at one more. And this was on
+the PGNY. This was actually a gap from Friday, literally, you know, 2 days ago.
+And this stock was on a very consistent downtrend. Check this out. It attempted
+to move higher on this day and then the next day it gapped down and just got completely sold off and then continued
+lower. We had a red bar on Thursday. So clearly the sellers were in control, the
+bears were in control. And then all of a sudden it gaps the next day from $18 or
+so. It gaps around 14% 15%. And by the way, the exact gap percentage isn't very
+relevant. What we look at is what is the gap doing to the price action. I don't really care about the exact percentage.
+I don't track that. I track where is it gapping to on the price charts and what effect [snorts]
+does that gap have on the relationship between the buyers and the sellers. And as you can see, I mean, this gap clearly
+ended this downtrend. It gapped above this entire move lower and it ended up
+leading to an absolutely amazing move higher and it ended up moving up about 8% that day which isn't a huge amount.
+However, still it closed at the highs, closed at $22.38 and this was actually a call out that I
+made to my students that trade live with me and a lot of my students were able to capitalize on this and it was just
+beautiful, right? nice trend lower and then of course it ended that downtrend and then went on a really nice run to
+the upside. Real quick, let's also look at a gap that is clearing above resistance and triggering a larger term
+breakout. So, this was on the Expedia this past Friday. This was also a call that I made and we had a nice move up on
+the EXPE and then it went sideways for a while. it was consolidating on the weekly time frame and on the daily time
+frame and then all of a sudden it gaps from 219 to around $247
+the next day. So this was Thursday and then the next day gapped up 12% on
+Friday. And this was a gap directly above all of this resistance. All right,
+let me find a rectangle so I could show you. This was a clear resistance area and we gapped above it and we triggered
+a daily breakout and we ended up getting a really nice move on the Expedia that that day from the market open to the
+top. It actually moved up almost 7% which by the way for a $250
+stock. That's not a bad move at all. So this is a great example of a gap that clears above resistance and triggers a
+daily breakout. Now that you understand the specific criteria that we look for when it comes to gap ups, now let's talk
+about how to actually execute the trade. And something that's really important to emphasize is just because you have an
+amazing gap up, it doesn't mean you're going to take that trade when the market
+opens. We don't just buy when the market opens and hope we get lucky. What we look for is an actionable setup. What we
+look for is a high quality identifiable setup in the first 30 minutes of the
+day. If there's no setup or if it's a lowquality intraday setup, I don't take
+the trade. Okay? So, we want a high quality gap with a high quality intraday
+setup. And that is the recipe for success. In fact, I probably pass on
+over 95% of the gaps that I see in the pre-market. This isn't a game of going
+long on every single gap up. This is picking your favorites, finding your highest probability gap ups and then
+taking like 5% of them when the market actually opens because you want a high quality gap up with a high quality
+intraday setup. Our job is to be selective. Now, there are times when the
+gap is so high quality that I will be flexible with the intraday setup where
+I'll still take the trade even if it's not A+, right? Because I like the gap so
+much. But ideally, I want a high quality gap and a high quality intraday setup.
+Okay? And the first really simple strategy that you could trade that I think any beginner can understand super
+easy is you wait for the first candlestick to form. And if you're
+liking the gap and you're like, "Hey, I want to try to get in this when the market opens or within 10 minutes from
+the market open." Well, you could trade what's called a high low. You could also call this an opening range breakout. So
+this is essentially when the first candlestick forms and what you do is you put your entry over the highs of the
+first candlestick. You put your stop loss under the lows of the first candlestick. And from there, if the
+trade triggers, it'll trigger you in right here. And hopefully, of course, it continues to the upside. And if it
+doesn't, well, of course, you would get stopped out under the lows of the first candlestick. It's a really easy and
+simple strategy. Now, you don't have to trade high lows every single day and on
+every single gap, every single gap up. This is just an option for you. This is a tool to have in your toolbox, a
+potential strategy that you could trade where, let's say it is a really high quality gap up. You're like, "Yeah, I
+want to look to get into this close to the market open." You could use a high low. You have this setup within your
+arsenal. Okay, so that's what a high low is. Super simple. entry above the first
+candlestick, stop-loss below. So, let's kind of break it down here if you want to take notes and write this down. So,
+again, you wait until the first candlestick forms. Uh, when it comes to buying entry over the candlesticks high,
+stop loss under the lows. The same thing applies if it's a short. Let's say it's a gap down, you could put your entry
+underneath the candlesticks low and stop loss above the highs. Now, you might be wondering, okay, that's easy enough, but
+on what time frame? like I want to wait for the first candlestick to form, but is that on the one minute chart or the
+two-minute chart or the five-minute chart or on the 15-inut chart? And that's the hardest part about trading a
+potential high low pattern. So, my suggestion is if you do it off the one
+or two minute time frame, meaning that's either in the first minute of the day you're taking the trade or second minute
+of the day you're taking the trade, right? Because the first candlestick forms in the first minute, entry above
+the high, stop loss below the lows. Or maybe the first two-minute candlestick forms. That's two minutes into the day.
+Entry above the high, stop loss below the lows. That's super super aggressive and you could get stopped out really
+quickly. In fact, a lot of gaps, they'll open and let's say this is the one minute, right? This is the one minute.
+The stock will open. You'll place your entry above the high, stop loss above the lows. It'll stop you out. it'll end
+up bottoming and then it'll go on a massive run, right? So, it's really easy to get shaken out. It's really easy to
+basically get stopped out just to see that stock actually end up going in your direction. My suggestion is to do it off
+the five minute. It's a lot safer. It's more controlled and that's already five minutes into the day where you could,
+you know, already get a feel of how that stock is moving. All right. Now, keep in mind the first candlestick, you don't
+want it to be a massive candlestick, okay? You don't want it to be like huge.
+The smaller the candlestick, the better because then you'll get a better reward to risk. All right? So, ideally, you
+have like a narrow range bar, like a smaller candlestick, first five minutes, entry above, stop-loss below the lows,
+and of course, this continues in your direction. Okay, this is an option for you when it comes to trading the open.
+You could trade the high low setup. So, the high low is one potential strategy. Let's go over a couple of other
+strategies. And to be honest, guys, I keep my trading extremely simple. I
+think the simplest things in life are oftent times the most brilliant. And that's what makes me a profitable
+trader. I keep it simple. I only trade simple setups. So, what you could look for are just simple breakouts or simple
+retracements. They're simple. It's easy to quickly calculate your share size. It's easy to understand. It's beginner
+friendly. And my suggestion is in the morning, don't force the setups. But I'll talk about that in a second. So,
+let's say the market opens and all of a sudden there's a move up and you start to get a base on that stock. Well, you
+can go, you know, entry above the base, stop loss below the base, and you could potentially ride the move higher. Or
+maybe when the market opens, it has a move up and then you get a pullback and you have an opportunity to buy the dip
+and go long. Now, I have other videos on this channel that, you know, explain how
+to trade breakouts and retracement setups in depth. I also have a free 10 plus hour course, which I highly
+recommend that you watch that also explains how to trade breakouts and retracements in depth. I don't want this
+video to be that long. So, just watch those videos after this video so you could really understand what we look for
+in breakouts and what we look for in retracement setups. But that's what you could trade, breakouts or retracements.
+And you could find my free course, by the way, in the description of this video. Okay? And yeah, that's all I
+really trade. I trade breakouts and retracements. And in the morning, I'll trade a high low pattern. Okay. Now,
+let's look at some reallife examples. Let's look at gaps that we already analyzed and talked about earlier in
+this video. So, we have the Benf that ended this downtrend. It had a nice gap up. And let's go to the smaller time
+frames and try to find intraday setups. I'm gonna use the twominut time frame.
+That's one of the primary time frames that I look at in the morning. And what do we have here? Well, we're looking for
+either retracements, we're looking for high low patterns, or we're looking for
+breakouts. And right off the bat on the Benf, I see a beautiful breakout. We open and we just consolidate in this
+range. So, what's the setup? setup is entry over the base, stop-loss directly
+under the base. Very simple, very easy to identify. We don't need to over complicate our entry and our stop loss.
+And this thing went on a what is it almost 52%
+rally from that entry. And this happened in essentially 15 minutes, right? So the
+gap on the daily time frame was the catalyst of this move. And from there, we took advantage of that catalyst by
+trading a breakout on the 2-minut time frame. Let's look at the WGRX that we
+already analyzed earlier in this video. And let's go ahead and go to the 2inut
+time frame. And what do we have here? Well, right off the bat, I see a high low pattern, right? This first
+two-minute bar formed. So, you could have placed your entry over the two-minute bars high, and you could have
+placed your stop-loss under the lows. Now, obviously, in hindsight, that was the right move, but I did not trade
+this. I thought it was way too aggressive. Like I said, I rarely trade high lows unless I'm really in love with
+the daily gap, but nevertheless, this was a high low and never stopped out. And the second setup is actually this
+little breakout here. We moved up, we consolidated for a bit, kind of a sloppy breakout. I also passed on this setup
+cuz I thought it was too sloppy, but nevertheless had a breakout entry above the highs, stop-loss right under the
+lows. That ended up working as well. And then there was also a retracement setup here where we moved up, we retraced to
+the rising 20 period moving average and you could have placed your stop loss under the lows of the retracement right
+here, entry directly above and you would have been able to catch this move as well. But overall, this was a sloppy
+intraday chart. And that's exactly why I passed on the setups on this stock, even
+though I really liked the gap. Now, let's go ahead and look at the beyond on the initial day of the gap. Remember, we
+analyzed this gapped above this little sell-off. And let's go ahead and look at the fiveinut time frame. And by the way,
+during the day, I'm always looking at multiple time frames. I'm not just looking at the 2-minut or the 5m minute
+or the 15 minute. I'm looking at all the time frames and I mean just check this out. This was a almost picture perfect
+five minute breakout. It opened, it dropped, then it just consolidated for a while and it was a picture perfect
+breakout and then a picture perfect retracement setup. And I actually traded this breakout and I traded this
+retracement setup. This these two setups were essentially my biggest winners that day. Entry easy above the base,
+stop-loss directly below the base. beautiful move up and then we had a beautiful retracement right into this
+rising 20 MA. Look at how prices are respecting the 20 MA. That's why I use it, right? It based right into it here
+on the five. Then it retraced right into the 20 MA here. In this case, the entry was over this entry bar, over this kind
+of bottoming tail, stop loss below, and this went on an insane run. Now, I didn't catch this entire move. I ended
+up taking profits like right around here, which in hindsight was really early, but nevertheless, great trade. I
+was more kind of scalping it with bigger size and yeah, just picture perfect breakout and a picture perfect uh
+retracement setup. Now, let's analyze the PGNY that we talked about earlier. We already talked about this daily gap.
+Let's go to the five minute time frame. And what do we see? And for me, it's actually really obvious. We have a nice
+move up, right? And then we have a I think five red bar pullback. And we have a beautiful retracement setup right
+here. And I called this I called this long over I believe this red candlestick
+that was triggering the retracement setup. Stop loss directly below and this of course went on a really nice run and
+you could have even played a breakout here where it moved up kind of based around this was also a bit of a
+retracement setup right here. Retraced right into the rising 20. You could have even went long over this base stop-loss
+below and you would have been able to catch this move as well. Beautiful gap
+up on the daily time frame, right? Beautiful gap up. Ended this downtrend, gapped above a red bar, and then there
+were some beautiful setups on the intraday time frames. Let's also review the EXPE that I talked about before.
+This was a nice gap up over the daily resistance triggering a breakout on the
+daily time frame. And let's go ahead and go to the 15minute time frame. And we had this initial really bullish move up
+and then we consolidated basically the entire day into a rising 20 MA. And this
+is why I use the 20 MA. I know this video isn't about talking about the 20 MA, but I have other videos that really
+explain it in depth on this YouTube channel and of course in my free course. So beautiful entry
+above the base, right? perfectly above the base stop loss. You could have
+placed it here. You could have also placed it right here. Obviously, it wasn't that big of a move higher, but I'm more trying to kind of prove a point
+here, right? Maybe this wasn't the biggest R to R play. However, still really nice follow-through to the
+upside. If we look to the two-minute in the morning, let's see if there were any setups. Not really. This thing kind of
+just opened, had a huge move higher, pulled in, so massive tail, and just grinded higher. So, I don't really see a
+setup here on the 2-minute in the morning, and that's why I didn't really focus on it. But later in the day, we
+looked at the 15, there was a nice breakout, and even on the five, moved up, retraced, moved up, and then based
+the entire day into the 20 and the 15, and we had a beautiful rally. By the way, I've had a lot of people in my
+comments tell me that I cherrypick only the winning setups and that everything looks good in hindsight. Well, I want to
+show you a losing trade that I took, I think last week on the FI. And just to
+show you that I also have losing trades. And this was actually a really big gap down. This was honestly too big of a gap
+down to really trade. It was gapping way below support. But nevertheless, I
+traded a high low setup on this or I think it was a fiveminut breakdown. But I'll show you exactly where I went short
+and how I got stopped out. So yeah, I think this was a high low off the fivem minute where I went short under this
+candlestick stop loss above. It triggered me in resulted in a big
+bottoming tail and then stopped me out on the way higher and then it actually kind of went higher and sold off later
+in the day. Ended up being a dogee bar on the daily. So it basically just went sideways all day. But this was an example of me getting stopped out. So in
+summary, every single morning we look at the gap ups and we find gap ups that are
+either clearing over resistance or that are ending downtrends or surprising sellers. And from there we trade the
+bias that we create in the pre-market on those gap ups via either a breakout or a
+retracement setup when the market opens. So, we develop our bias in the pre-market and then we execute on that
+bias via a identifiable simple setup, whether that's a high, low, breakout, or
+retracement. All right, hopefully you enjoyed this video. Make sure you leave a comment and provide me feedback. I
+love reading the comments. Make sure you leave a like and make sure you subscribe to the channel for more educational videos. Ultimately, my only goal is to
+help you advance as a trader and become profitable. And also, make sure you get started with my free 10 plus hour
+course. It's genuinely better than most paid courses on the internet. I will see you on the next video.
