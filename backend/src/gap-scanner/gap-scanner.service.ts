@@ -44,6 +44,174 @@ export class GapScannerService {
     private readonly settingsService: SettingsService,
   ) {}
 
+  /**
+   * Emanuel Score (0-100).
+   *
+   * Based on Emanuel's exact rules from his transcripts:
+   *  1. Gaps that END a preexisting trend (his #1 rule — "pass on 95% of gaps")
+   *  2. Gap breaks above prior pivot highs (lower highs) or below prior pivot lows (higher lows)
+   *  3. Gap crosses a key level (200MA, support/resistance)
+   *  4. 20MA must be trending, not flat ("I don't trade flat 20MAs")
+   *  5. Significant volume ("gapping up on significant volume")
+   *  6. Daily chart structure makes sense
+   *
+   * Gap size alone does NOT determine quality — a 15% gap can fail,
+   * a 58% gap can work. Structure > size.
+   */
+  private scoreGap(candidate: {
+    gapPercent: number;
+    prevClose: number;
+    currentPrice: number;
+    volume: number;
+    ma20: number | null;
+    ma200: number | null;
+    trendDirection: string;
+    dailyContext: string;
+    bars?: Array<{ close: number; high: number; low: number }>;
+  }): { score: number; reasons: string[] } {
+    let score = 0;
+    const reasons: string[] = [];
+    const isGapUp = candidate.gapPercent > 0;
+
+    // ──────────────────────────────────────────────────────────
+    // RULE 1: Gap ends a preexisting trend (35 pts)
+    // Emanuel: "You want to find gap ups that end preexisting downtrends
+    //  on the daily time frame... these gaps can be extremely powerful
+    //  because they shock all sellers that were participating"
+    // ──────────────────────────────────────────────────────────
+    if (
+      (isGapUp && candidate.dailyContext === 'gap_ends_downtrend') ||
+      (!isGapUp && candidate.dailyContext === 'gap_ends_uptrend')
+    ) {
+      score += 35;
+      reasons.push('Ends prior trend — trapped traders must exit (Emanuel\'s #1 rule)');
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // RULE 2: Gap breaks above prior pivot highs / below pivot lows (20 pts)
+    // Emanuel: "It gapped above this prior pivot. It gapped above
+    //  this lower high" — confirms the trend break is real
+    // ──────────────────────────────────────────────────────────
+    if (candidate.bars && candidate.bars.length >= 20) {
+      const recent = candidate.bars.slice(-20);
+      const pivotBreak = this.detectPivotBreak(recent, candidate.currentPrice, isGapUp);
+      if (pivotBreak) {
+        score += 20;
+        reasons.push('Gap breaks above prior pivot highs — confirms trend reversal');
+      }
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // RULE 3: Gap crosses key level — 200MA or support/resistance (20 pts)
+    // Emanuel: "It gapped above the 200 MA" = very bullish
+    // A gap crossing 200MA triggers institutional participation
+    // ──────────────────────────────────────────────────────────
+    if (candidate.dailyContext === 'gap_above_200ma' || candidate.dailyContext === 'gap_below_200ma') {
+      score += 20;
+      reasons.push('Gap crosses 200MA — major level break, institutional trigger');
+    } else if (candidate.dailyContext === 'gap_above_resistance' || candidate.dailyContext === 'gap_below_support') {
+      score += 15;
+      reasons.push('Gap clears key support/resistance level');
+    } else if (candidate.dailyContext === 'other') {
+      // No recognisable daily structure — Emanuel would skip this
+      score -= 10;
+      reasons.push('No clear daily chart context — Emanuel would skip');
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // RULE 4: 20MA must be trending (15 pts)
+    // Emanuel: "I don't trade flat 20MAs — they indicate no momentum"
+    // Rising 20MA trending against gap = confirms prior trend to reverse
+    // Flat 20MA = avoid entirely
+    // ──────────────────────────────────────────────────────────
+    if (candidate.trendDirection === 'sideways') {
+      score -= 15;
+      reasons.push('Flat 20MA — no momentum, Emanuel says avoid');
+    } else if (candidate.ma20 !== null) {
+      if (
+        (isGapUp && candidate.trendDirection === 'downtrend') ||
+        (!isGapUp && candidate.trendDirection === 'uptrend')
+      ) {
+        // 20MA was trending against the gap — confirms there IS a trend to reverse
+        score += 15;
+        reasons.push('20MA confirms prior trend existed — real reversal');
+      } else {
+        // 20MA already aligned with gap — continuation, not reversal
+        // Emanuel's strategy is about reversals, not continuations
+        score += 5;
+        reasons.push('20MA already aligned with gap — continuation (not Emanuel\'s primary setup)');
+      }
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // RULE 5: Significant volume (10 pts)
+    // Emanuel: "gapping up on significant volume" is required
+    // ──────────────────────────────────────────────────────────
+    if (candidate.volume >= 1_000_000) {
+      score += 10;
+      reasons.push('Significant volume (1M+) — strong participation');
+    } else if (candidate.volume >= 500_000) {
+      score += 5;
+      reasons.push('Decent volume (500K+)');
+    } else if (candidate.volume < 100_000) {
+      score -= 5;
+      reasons.push('Low volume — weak participation');
+    }
+
+    // Clamp to 0-100
+    score = Math.max(0, Math.min(100, score));
+
+    return { score, reasons };
+  }
+
+  /**
+   * Detect whether the gap price breaks above prior pivot highs (for gap-ups)
+   * or below prior pivot lows (for gap-downs).
+   *
+   * Emanuel: "It gapped above this prior pivot. It gapped above this lower high."
+   *
+   * For a downtrend, we look for "lower highs" — the swing highs are descending.
+   * If the gap opens above the most recent lower high, the downtrend structure is broken.
+   */
+  private detectPivotBreak(
+    bars: Array<{ close: number; high: number; low: number }>,
+    gapPrice: number,
+    isGapUp: boolean,
+  ): boolean {
+    // Find swing highs and lows using a simple 3-bar pivot detection
+    const pivotHighs: number[] = [];
+    const pivotLows: number[] = [];
+
+    for (let i = 1; i < bars.length - 1; i++) {
+      if (bars[i].high > bars[i - 1].high && bars[i].high > bars[i + 1].high) {
+        pivotHighs.push(bars[i].high);
+      }
+      if (bars[i].low < bars[i - 1].low && bars[i].low < bars[i + 1].low) {
+        pivotLows.push(bars[i].low);
+      }
+    }
+
+    if (isGapUp && pivotHighs.length >= 2) {
+      // Check for lower highs (downtrend structure)
+      const lastTwo = pivotHighs.slice(-2);
+      const hasLowerHighs = lastTwo[1] < lastTwo[0];
+      // Gap breaks above the most recent lower high = trend break
+      if (hasLowerHighs && gapPrice > lastTwo[1]) {
+        return true;
+      }
+    } else if (!isGapUp && pivotLows.length >= 2) {
+      // Check for higher lows (uptrend structure)
+      const lastTwo = pivotLows.slice(-2);
+      const hasHigherLows = lastTwo[1] > lastTwo[0];
+      // Gap breaks below the most recent higher low = trend break
+      if (hasHigherLows && gapPrice < lastTwo[1]) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   private get alpacaHeaders() {
     return {
       'APCA-API-KEY-ID': this.config.get('ALPACA_API_KEY'),
@@ -235,6 +403,17 @@ export class GapScannerService {
           }
         }
 
+        const { score, reasons } = this.scoreGap({
+          gapPercent: candidate.gapPercent,
+          prevClose: candidate.prevClose,
+          currentPrice: candidate.currentPrice,
+          volume: candidate.preMarketVolume,
+          ma20,
+          ma200,
+          trendDirection,
+          dailyContext,
+        });
+
         const result = this.repo.create({
           symbol: candidate.symbol,
           prevClose: candidate.prevClose,
@@ -247,6 +426,8 @@ export class GapScannerService {
           dailyContext,
           exchange: this.assetCache.getExchangeForSymbol(candidate.symbol) || undefined,
           selected: false,
+          score,
+          scoreReasons: reasons,
           scanDate: today,
         });
 
@@ -430,6 +611,18 @@ export class GapScannerService {
           }
         }
 
+        const { score, reasons } = this.scoreGap({
+          gapPercent: candidate.gapPercent,
+          prevClose: candidate.prevClose,
+          currentPrice: candidate.openPrice,
+          volume: candidate.volume,
+          ma20,
+          ma200,
+          trendDirection,
+          dailyContext,
+          bars: barsUpToDate,
+        });
+
         results.push(this.repo.create({
           symbol: candidate.symbol,
           prevClose: candidate.prevClose,
@@ -442,6 +635,8 @@ export class GapScannerService {
           dailyContext,
           exchange: this.assetCache.getExchangeForSymbol(candidate.symbol) || undefined,
           selected: false,
+          score,
+          scoreReasons: reasons,
           scanDate: date,
         }));
       } catch (err) {

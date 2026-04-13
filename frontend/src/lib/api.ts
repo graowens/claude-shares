@@ -221,6 +221,8 @@ export interface GapScanResult {
   ma200: number | null;
   trendDirection: string | null;
   dailyContext: string | null;
+  score: number;
+  scoreReasons: string[] | null;
   selected: boolean;
   scanDate: string;
   createdAt: string;
@@ -304,6 +306,12 @@ export interface BacktestFromGapsResult {
       shares: number;
       equityAfter: number;
     }>;
+    optimalParams?: {
+      stopLoss: number;
+      takeProfit: number;
+      totalPnl: number;
+      winRate: number;
+    };
   };
   createdAt: string;
 }

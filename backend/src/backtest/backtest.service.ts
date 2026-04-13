@@ -20,6 +20,23 @@ interface SimulatedTrade {
   equityAfter?: number;
 }
 
+interface BarData {
+  timestamp: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+interface StockSetup {
+  symbol: string;
+  bars: BarData[];
+  gapPercent: number;
+  isGapUp: boolean;
+  side: 'buy' | 'sell';
+}
+
 @Injectable()
 export class BacktestService {
   private readonly logger = new Logger(BacktestService.name);
@@ -207,17 +224,12 @@ export class BacktestService {
       `Running gap-scan backtest: scanDate=${scanDate}, tradingDay=${tradingDay}, ${selected.length} stocks, capital=${capital}`,
     );
 
-    const simulatedTrades: SimulatedTrade[] = [];
-    let equity = capital;
-    let maxEquity = equity;
-    let maxDrawdown = 0;
-    // Split capital evenly across selected stocks
-    const capitalPerStock = capital / selected.length;
-
     // Market open 09:30 ET, first hour ends 10:30 ET
     const startTime = `${tradingDay}T09:30:00-04:00`;
     const endTime = `${tradingDay}T10:30:00-04:00`;
 
+    // Fetch bars once for all selected stocks
+    const setups: StockSetup[] = [];
     for (const gap of selected) {
       try {
         const bars = await this.alpaca.getHistoricalBars(
@@ -234,90 +246,30 @@ export class BacktestService {
 
         const gapPercent = Number(gap.gapPercent);
         const isGapUp = gapPercent > 0;
-        const side: 'buy' | 'sell' = isGapUp ? 'buy' : 'sell';
-        const entryPrice = bars[0].open;
-
-        const stopLevel = isGapUp
-          ? entryPrice * (1 - stopLoss / 100)
-          : entryPrice * (1 + stopLoss / 100);
-
-        const targetLevel = isGapUp
-          ? entryPrice * (1 + takeProfit / 100)
-          : entryPrice * (1 - takeProfit / 100);
-
-        let exitPrice: number | null = null;
-        let exitReason: SimulatedTrade['exitReason'] = 'end_of_hour';
-
-        // Check each bar (skip the first since we enter at its open)
-        for (let i = 0; i < bars.length; i++) {
-          const bar = bars[i];
-
-          if (isGapUp) {
-            if (bar.low <= stopLevel) {
-              exitPrice = stopLevel;
-              exitReason = 'stop_loss';
-              break;
-            }
-            if (bar.high >= targetLevel) {
-              exitPrice = targetLevel;
-              exitReason = 'take_profit';
-              break;
-            }
-          } else {
-            if (bar.high >= stopLevel) {
-              exitPrice = stopLevel;
-              exitReason = 'stop_loss';
-              break;
-            }
-            if (bar.low <= targetLevel) {
-              exitPrice = targetLevel;
-              exitReason = 'take_profit';
-              break;
-            }
-          }
-        }
-
-        // If no exit triggered, close at last bar's close
-        if (exitPrice === null) {
-          exitPrice = bars[bars.length - 1].close;
-          exitReason = 'end_of_hour';
-        }
-
-        const shares = Math.floor(capitalPerStock / entryPrice);
-        if (shares <= 0) continue;
-        const multiplier = isGapUp ? 1 : -1;
-        const pnlPerShare = (exitPrice - entryPrice) * multiplier;
-        const pnlPercent = (pnlPerShare / entryPrice) * 100;
-        const pnl = pnlPerShare * shares;
-
-        equity += pnl;
-        maxEquity = Math.max(maxEquity, equity);
-        const drawdown = ((maxEquity - equity) / maxEquity) * 100;
-        maxDrawdown = Math.max(maxDrawdown, drawdown);
-
-        simulatedTrades.push({
-          date: tradingDay,
+        setups.push({
           symbol: gap.symbol,
-          entryPrice,
-          exitPrice,
-          pnl,
-          pnlPercent,
-          side,
-          exitReason,
-          shares,
+          bars,
           gapPercent,
-          equityAfter: equity,
+          isGapUp,
+          side: isGapUp ? 'buy' : 'sell',
         });
       } catch (err) {
-        this.logger.error(`Error backtesting ${gap.symbol}: ${err.message}`);
+        this.logger.error(`Error fetching bars for ${gap.symbol}: ${err.message}`);
       }
     }
 
-    const totalTrades = simulatedTrades.length;
-    const wins = simulatedTrades.filter((t) => t.pnl > 0).length;
-    const losses = simulatedTrades.filter((t) => t.pnl < 0).length;
-    const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
-    const totalPnl = simulatedTrades.reduce((sum, t) => sum + t.pnl, 0);
+    // Run the backtest with user-specified params
+    const sim = this.simulateWithParams(setups, stopLoss, takeProfit, capital);
+
+    // Find optimal SL/TP for this day
+    const optimal = this.findOptimalParams(setups, capital);
+    this.logger.log(
+      `Optimal params for ${scanDate}: SL=${optimal.stopLoss}%, TP=${optimal.takeProfit}%, P/L=${optimal.totalPnl}`,
+    );
+
+    const totalTrades = sim.trades.length;
+    const wins = sim.trades.filter((t) => t.pnl > 0).length;
+    const losses = sim.trades.filter((t) => t.pnl < 0).length;
 
     const result = this.repo.create({
       symbol: 'MULTI',
@@ -325,23 +277,137 @@ export class BacktestService {
       startDate: scanDate,
       endDate: tradingDay,
       totalTrades,
-      winRate: Math.round(winRate * 100) / 100,
-      totalPnl: Math.round(totalPnl * 100) / 100,
-      maxDrawdown: Math.round(maxDrawdown * 100) / 100,
+      winRate: Math.round(sim.winRate * 100) / 100,
+      totalPnl: Math.round(sim.totalPnl * 100) / 100,
+      maxDrawdown: Math.round(sim.maxDrawdown * 100) / 100,
       params: {
         scanDate,
         tradingDay,
         stopLossPercent: stopLoss,
         takeProfitPercent: takeProfit,
         startingCapital: capital,
-        finalEquity: equity,
+        finalEquity: sim.finalEquity,
         wins,
         losses,
-        trades: simulatedTrades,
+        trades: sim.trades,
+        optimalParams: optimal,
       },
     });
 
     return this.repo.save(result);
+  }
+
+  /**
+   * Simulate trades for a set of stocks with given SL/TP values.
+   * Bars are pre-fetched so this is pure computation.
+   */
+  private simulateWithParams(
+    setups: StockSetup[],
+    stopLoss: number,
+    takeProfit: number,
+    startingCapital: number,
+  ): { trades: SimulatedTrade[]; totalPnl: number; winRate: number; maxDrawdown: number; finalEquity: number } {
+    const capitalPerStock = startingCapital / setups.length;
+    let equity = startingCapital;
+    let maxEquity = equity;
+    let maxDrawdown = 0;
+    const trades: SimulatedTrade[] = [];
+
+    for (const setup of setups) {
+      const { bars, isGapUp, side, gapPercent, symbol } = setup;
+      const entryPrice = bars[0].open;
+
+      const stopLevel = isGapUp
+        ? entryPrice * (1 - stopLoss / 100)
+        : entryPrice * (1 + stopLoss / 100);
+
+      const targetLevel = isGapUp
+        ? entryPrice * (1 + takeProfit / 100)
+        : entryPrice * (1 - takeProfit / 100);
+
+      let exitPrice: number | null = null;
+      let exitReason: SimulatedTrade['exitReason'] = 'end_of_hour';
+
+      for (const bar of bars) {
+        if (isGapUp) {
+          if (bar.low <= stopLevel) { exitPrice = stopLevel; exitReason = 'stop_loss'; break; }
+          if (bar.high >= targetLevel) { exitPrice = targetLevel; exitReason = 'take_profit'; break; }
+        } else {
+          if (bar.high >= stopLevel) { exitPrice = stopLevel; exitReason = 'stop_loss'; break; }
+          if (bar.low <= targetLevel) { exitPrice = targetLevel; exitReason = 'take_profit'; break; }
+        }
+      }
+
+      if (exitPrice === null) {
+        exitPrice = bars[bars.length - 1].close;
+        exitReason = 'end_of_hour';
+      }
+
+      const shares = Math.floor(capitalPerStock / entryPrice);
+      if (shares <= 0) continue;
+      const multiplier = isGapUp ? 1 : -1;
+      const pnlPerShare = (exitPrice - entryPrice) * multiplier;
+      const pnlPercent = (pnlPerShare / entryPrice) * 100;
+      const pnl = pnlPerShare * shares;
+
+      equity += pnl;
+      maxEquity = Math.max(maxEquity, equity);
+      const drawdown = ((maxEquity - equity) / maxEquity) * 100;
+      maxDrawdown = Math.max(maxDrawdown, drawdown);
+
+      trades.push({
+        date: bars[0].timestamp,
+        symbol,
+        entryPrice,
+        exitPrice,
+        pnl,
+        pnlPercent,
+        side,
+        exitReason,
+        shares,
+        gapPercent,
+        equityAfter: equity,
+      });
+    }
+
+    const wins = trades.filter((t) => t.pnl > 0).length;
+    const winRate = trades.length > 0 ? (wins / trades.length) * 100 : 0;
+    const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
+
+    return { trades, totalPnl, winRate, maxDrawdown, finalEquity: equity };
+  }
+
+  /**
+   * Sweep a grid of SL/TP values to find the optimal combination.
+   */
+  private findOptimalParams(
+    setups: StockSetup[],
+    startingCapital: number,
+  ): { stopLoss: number; takeProfit: number; totalPnl: number; winRate: number } {
+    let bestPnl = -Infinity;
+    let bestSL = 1;
+    let bestTP = 2;
+    let bestWinRate = 0;
+
+    // Sweep SL: 0.3% to 3% in 0.3% steps, TP: 0.3% to 5% in 0.3% steps
+    for (let sl = 0.3; sl <= 3.0; sl = Math.round((sl + 0.3) * 10) / 10) {
+      for (let tp = 0.3; tp <= 5.0; tp = Math.round((tp + 0.3) * 10) / 10) {
+        const result = this.simulateWithParams(setups, sl, tp, startingCapital);
+        if (result.totalPnl > bestPnl) {
+          bestPnl = result.totalPnl;
+          bestSL = sl;
+          bestTP = tp;
+          bestWinRate = result.winRate;
+        }
+      }
+    }
+
+    return {
+      stopLoss: Math.round(bestSL * 10) / 10,
+      takeProfit: Math.round(bestTP * 10) / 10,
+      totalPnl: Math.round(bestPnl * 100) / 100,
+      winRate: Math.round(bestWinRate * 100) / 100,
+    };
   }
 
   async getResults(limit = 50): Promise<BacktestResult[]> {

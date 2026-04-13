@@ -39,6 +39,8 @@ import {
   Target,
   BarChart3,
   Play,
+  Star,
+  Info,
 } from "lucide-react";
 
 export const backtestRoute = createRoute({
@@ -104,6 +106,27 @@ function exitReasonBadge(reason: string) {
   if (r.includes("end of hour") || r.includes("eoh") || r.includes("time"))
     return <Badge variant="warning">End of Hour</Badge>;
   return <Badge variant="secondary">{reason}</Badge>;
+}
+
+function scoreBadge(score: number) {
+  if (score >= 50)
+    return (
+      <Badge className="border-transparent bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30 font-bold">
+        <Star className="mr-1 h-3 w-3 fill-emerald-400" />
+        {score}
+      </Badge>
+    );
+  if (score >= 30)
+    return (
+      <Badge className="border-transparent bg-yellow-500/20 text-yellow-300 ring-1 ring-yellow-500/30 font-bold">
+        {score}
+      </Badge>
+    );
+  return (
+    <Badge variant="secondary" className="font-bold opacity-60">
+      {score}
+    </Badge>
+  );
 }
 
 function BacktestPage() {
@@ -178,7 +201,7 @@ function BacktestPage() {
   });
 
   const sorted = [...scanResults].sort(
-    (a, b) => Math.abs(Number(b.gapPercent)) - Math.abs(Number(a.gapPercent))
+    (a, b) => (b.score ?? 0) - (a.score ?? 0) || Math.abs(Number(b.gapPercent)) - Math.abs(Number(a.gapPercent))
   );
   const selectedCount = scanResults.filter((r) => r.selected).length;
 
@@ -251,9 +274,25 @@ function BacktestPage() {
           {sorted.length > 0 && (
             <div className="mt-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">
-                  {sorted.length} gap{sorted.length !== 1 ? "s" : ""} found
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-muted-foreground">
+                    {sorted.length} gap{sorted.length !== 1 ? "s" : ""} found
+                  </span>
+                  {(() => {
+                    const highQuality = sorted.filter((g) => (g.score ?? 0) >= 50).length;
+                    return highQuality > 0 ? (
+                      <span className="text-sm">
+                        <Star className="inline h-3.5 w-3.5 fill-emerald-400 text-emerald-400 mr-1" />
+                        <span className="font-bold text-emerald-400">{highQuality}</span>
+                        <span className="text-muted-foreground"> high quality</span>
+                      </span>
+                    ) : (
+                      <span className="text-sm text-yellow-400">
+                        No high-quality setups — Emanuel would pass
+                      </span>
+                    );
+                  })()}
+                </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm">
                     <span className="font-bold text-foreground">{selectedCount}</span>{" "}
@@ -281,11 +320,13 @@ function BacktestPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12"></TableHead>
+                      <TableHead>Emanuel Score</TableHead>
                       <TableHead>Symbol</TableHead>
                       <TableHead>Exchange</TableHead>
                       <TableHead>Gap %</TableHead>
                       <TableHead>Trend</TableHead>
                       <TableHead>Daily Context</TableHead>
+                      <TableHead>Why</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -301,7 +342,9 @@ function BacktestPage() {
                               ? isGapUp
                                 ? "border-l-2 border-l-emerald-400 bg-emerald-500/5"
                                 : "border-l-2 border-l-red-400 bg-red-500/5"
-                              : "opacity-70 hover:opacity-100"
+                              : (gap.score ?? 0) >= 50
+                                ? "border-l-2 border-l-violet-400/50 opacity-90 hover:opacity-100"
+                                : "opacity-70 hover:opacity-100"
                           )}
                           onClick={() => toggleMut.mutate(gap.id)}
                         >
@@ -319,6 +362,7 @@ function BacktestPage() {
                               {gap.selected && <CheckCircle2 className="h-3.5 w-3.5" />}
                             </div>
                           </TableCell>
+                          <TableCell>{scoreBadge(gap.score ?? 0)}</TableCell>
                           <TableCell className="font-bold">
                             <a
                               href={`https://www.tradingview.com/chart/?symbol=${gap.symbol}`}
@@ -350,6 +394,25 @@ function BacktestPage() {
                           </TableCell>
                           <TableCell>{trendBadge(gap.trendDirection)}</TableCell>
                           <TableCell>{contextBadge(gap.dailyContext)}</TableCell>
+                          <TableCell>
+                            {gap.scoreReasons && gap.scoreReasons.length > 0 ? (
+                              <div className="group relative">
+                                <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                                <div className="invisible group-hover:visible absolute left-0 bottom-full mb-2 z-50 w-64 rounded-md border bg-popover p-3 text-xs text-popover-foreground shadow-md">
+                                  <ul className="space-y-1">
+                                    {gap.scoreReasons.map((r, i) => (
+                                      <li key={i} className="flex items-start gap-1.5">
+                                        <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
+                                        {r}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -409,7 +472,7 @@ function BacktestPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="stopLoss" className="text-xs text-muted-foreground">
-                  Stop Loss %
+                  Stop Loss % <span className="text-violet-400">(Emanuel: 1%)</span>
                 </Label>
                 <Input
                   id="stopLoss"
@@ -419,11 +482,12 @@ function BacktestPage() {
                   className="w-24"
                   value={stopLoss}
                   onChange={(e) => setStopLoss(e.target.value)}
+                  placeholder="1"
                 />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="takeProfit" className="text-xs text-muted-foreground">
-                  Take Profit %
+                  Take Profit % <span className="text-violet-400">(Emanuel: 2%)</span>
                 </Label>
                 <Input
                   id="takeProfit"
@@ -433,6 +497,7 @@ function BacktestPage() {
                   className="w-24"
                   value={takeProfit}
                   onChange={(e) => setTakeProfit(e.target.value)}
+                  placeholder="2"
                 />
               </div>
               <Button
@@ -531,6 +596,54 @@ function BacktestPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Optimal SL/TP */}
+          {backtestResult.params.optimalParams && (
+            <Card className="border-violet-500/30 bg-violet-500/5">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <Target className="h-5 w-5 text-violet-400" />
+                  <p className="font-semibold text-violet-300">Optimal Stop Loss / Take Profit for this day</p>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Best Stop Loss</p>
+                    <p className="text-xl font-bold text-foreground">
+                      {backtestResult.params.optimalParams.stopLoss}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Best Take Profit</p>
+                    <p className="text-xl font-bold text-foreground">
+                      {backtestResult.params.optimalParams.takeProfit}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Optimal P/L</p>
+                    <p className={cn("text-xl font-bold", plClass(backtestResult.params.optimalParams.totalPnl))}>
+                      {formatCurrency(backtestResult.params.optimalParams.totalPnl)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Optimal Win Rate</p>
+                    <p className={cn(
+                      "text-xl font-bold",
+                      backtestResult.params.optimalParams.winRate >= 50 ? "text-emerald-400" : "text-red-400"
+                    )}>
+                      {backtestResult.params.optimalParams.winRate.toFixed(1)}%
+                    </p>
+                  </div>
+                </div>
+                {(backtestResult.params.optimalParams.stopLoss !== backtestResult.params.stopLossPercent ||
+                  backtestResult.params.optimalParams.takeProfit !== backtestResult.params.takeProfitPercent) && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    You used SL {backtestResult.params.stopLossPercent}% / TP {backtestResult.params.takeProfitPercent}% &mdash; optimal would have been SL {backtestResult.params.optimalParams.stopLoss}% / TP {backtestResult.params.optimalParams.takeProfit}% for{" "}
+                    {formatCurrency(backtestResult.params.optimalParams.totalPnl - backtestResult.totalPnl)} more P/L
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Trades Table */}
           {backtestResult.params.trades && backtestResult.params.trades.length > 0 && (

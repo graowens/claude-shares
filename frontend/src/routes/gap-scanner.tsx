@@ -35,6 +35,8 @@ import {
   Save,
   Clock,
   X,
+  Star,
+  Info,
 } from "lucide-react";
 
 export const gapScannerRoute = createRoute({
@@ -120,6 +122,27 @@ function isHighQualityContext(ctx: string | null): boolean {
     c.includes("ends uptrend") ||
     c.includes("below 200ma") ||
     c.includes("below 200")
+  );
+}
+
+function scoreBadge(score: number) {
+  if (score >= 50)
+    return (
+      <Badge className="border-transparent bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30 font-bold">
+        <Star className="mr-1 h-3 w-3 fill-emerald-400" />
+        {score}
+      </Badge>
+    );
+  if (score >= 30)
+    return (
+      <Badge className="border-transparent bg-yellow-500/20 text-yellow-300 ring-1 ring-yellow-500/30 font-bold">
+        {score}
+      </Badge>
+    );
+  return (
+    <Badge variant="secondary" className="font-bold opacity-60">
+      {score}
+    </Badge>
   );
 }
 
@@ -244,7 +267,7 @@ function GapScannerPage() {
     return true;
   });
   const sorted = [...filtered].sort(
-    (a, b) => Math.abs(b.gapPercent) - Math.abs(a.gapPercent)
+    (a, b) => (b.score ?? 0) - (a.score ?? 0) || Math.abs(b.gapPercent) - Math.abs(a.gapPercent)
   );
   const selectedCount = results.filter((r) => r.selected).length;
   const currency = settingsData?.currency ?? "GBP";
@@ -373,6 +396,20 @@ function GapScannerPage() {
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
                   {sorted.length} stock{sorted.length !== 1 ? "s" : ""} shown
                 </span>
+                {(() => {
+                  const hq = sorted.filter((g) => (g.score ?? 0) >= 50).length;
+                  return hq > 0 ? (
+                    <span className="ml-3 text-sm font-normal">
+                      <Star className="inline h-3.5 w-3.5 fill-emerald-400 text-emerald-400 mr-1" />
+                      <span className="font-bold text-emerald-400">{hq}</span>
+                      <span className="text-muted-foreground"> high quality</span>
+                    </span>
+                  ) : (
+                    <span className="ml-3 text-sm font-normal text-yellow-400">
+                      No high-quality setups — Emanuel would pass
+                    </span>
+                  );
+                })()}
               </CardTitle>
               <div className="flex gap-1 rounded-lg bg-muted p-1">
                 {(["all", "up", "down"] as const).map((f) => (
@@ -397,6 +434,7 @@ function GapScannerPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12"></TableHead>
+                  <TableHead>Emanuel Score</TableHead>
                   <TableHead>Symbol</TableHead>
                   <TableHead>Exchange</TableHead>
                   <TableHead>Gap %</TableHead>
@@ -407,6 +445,7 @@ function GapScannerPage() {
                   <TableHead>200MA</TableHead>
                   <TableHead>Trend</TableHead>
                   <TableHead>Daily Context</TableHead>
+                  <TableHead>Why</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -421,10 +460,9 @@ function GapScannerPage() {
                         ? isGapUp
                           ? "border-l-2 border-l-emerald-400 bg-emerald-500/5"
                           : "border-l-2 border-l-red-400 bg-red-500/5"
-                        : "opacity-70 hover:opacity-100",
-                      isHighQualityContext(gap.dailyContext) && !gap.selected
-                        ? "opacity-85"
-                        : ""
+                        : (gap.score ?? 0) >= 50
+                          ? "border-l-2 border-l-violet-400/50 opacity-90 hover:opacity-100"
+                          : "opacity-70 hover:opacity-100"
                     )}
                     onClick={() => toggleMut.mutate(gap.id)}
                   >
@@ -442,6 +480,7 @@ function GapScannerPage() {
                         {gap.selected && <CheckCircle2 className="h-3.5 w-3.5" />}
                       </div>
                     </TableCell>
+                    <TableCell>{scoreBadge(gap.score ?? 0)}</TableCell>
                     <TableCell className="font-bold text-base">
                       <a
                         href={`https://www.tradingview.com/chart/?symbol=${gap.symbol}`}
@@ -487,6 +526,25 @@ function GapScannerPage() {
                     </TableCell>
                     <TableCell>{trendBadge(gap.trendDirection)}</TableCell>
                     <TableCell>{contextBadge(gap.dailyContext)}</TableCell>
+                    <TableCell>
+                      {gap.scoreReasons && gap.scoreReasons.length > 0 ? (
+                        <div className="group relative">
+                          <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                          <div className="invisible group-hover:visible absolute right-0 bottom-full mb-2 z-50 w-64 rounded-md border bg-popover p-3 text-xs text-popover-foreground shadow-md">
+                            <ul className="space-y-1">
+                              {gap.scoreReasons.map((r, i) => (
+                                <li key={i} className="flex items-start gap-1.5">
+                                  <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
+                                  {r}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                   </TableRow>
                   );
                 })}

@@ -60,6 +60,25 @@
   }
 }
 
+/* Make date input calendar icon easier to click */
+input[type="date"] {
+  cursor: pointer;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+}
+input[type="date"] {
+  position: relative;
+}
+
 /* Scrollbar styling for dark theme */
 ::-webkit-scrollbar {
   width: 8px;

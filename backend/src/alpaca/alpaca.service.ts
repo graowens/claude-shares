@@ -1,14 +1,30 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, In } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import Alpaca from '@alpacahq/alpaca-trade-api';
 import axios from 'axios';
+import { BarCache } from './entities/bar-cache.entity';
+
+interface Bar {
+  timestamp: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
 
 @Injectable()
 export class AlpacaService implements OnModuleInit {
   private readonly logger = new Logger(AlpacaService.name);
   private client: Alpaca;
 
-  constructor(private config: ConfigService) {}
+  constructor(
+    private config: ConfigService,
+    @InjectRepository(BarCache)
+    private readonly barCacheRepo: Repository<BarCache>,
+  ) {}
 
   onModuleInit() {
     const baseUrl = this.config.get(
@@ -58,8 +74,16 @@ export class AlpacaService implements OnModuleInit {
     start: string,
     end: string,
     limit = 1000,
-  ) {
-    const bars = [];
+  ): Promise<Bar[]> {
+    // Check cache first
+    const cached = await this.getCachedBars(symbol, timeframe, start, end);
+    if (cached.length > 0) {
+      this.logger.debug(`Cache hit: ${symbol} ${timeframe} (${cached.length} bars)`);
+      return cached;
+    }
+
+    // Fetch from Alpaca
+    const bars: Bar[] = [];
     const barsIterator = this.client.getBarsV2(symbol, {
       timeframe,
       start,
@@ -78,6 +102,12 @@ export class AlpacaService implements OnModuleInit {
         volume: Number(bar.Volume),
       });
     }
+
+    // Store in cache
+    if (bars.length > 0) {
+      await this.cacheBars(symbol, timeframe, bars);
+    }
+
     return bars;
   }
 
@@ -111,45 +141,128 @@ export class AlpacaService implements OnModuleInit {
 
   /**
    * Fetch daily bars for multiple symbols in one call using Alpaca data API.
-   * Returns a map of symbol -> bars array.
+   * Returns a map of symbol -> bars array. Uses cache when available.
    */
   async getMultiSymbolBars(
     symbols: string[],
     start: string,
     end: string,
-  ): Promise<Record<string, Array<{ timestamp: string; open: number; high: number; low: number; close: number; volume: number }>>> {
-    const result: Record<string, any[]> = {};
-    // Alpaca multi-bar endpoint accepts up to ~200 symbols per request
-    const batchSize = 200;
+  ): Promise<Record<string, Bar[]>> {
+    const result: Record<string, Bar[]> = {};
+    const timeframe = '1Day';
 
-    for (let i = 0; i < symbols.length; i += batchSize) {
-      const batch = symbols.slice(i, i + batchSize);
-      const symbolsParam = batch.join(',');
-      try {
-        const resp = await axios.get(
-          `https://data.alpaca.markets/v2/stocks/bars?symbols=${symbolsParam}&timeframe=1Day&start=${start}&end=${end}&limit=10000&feed=iex`,
-          {
-            headers: {
-              'APCA-API-KEY-ID': this.config.get('ALPACA_API_KEY'),
-              'APCA-API-SECRET-KEY': this.config.get('ALPACA_API_SECRET'),
-            },
-          },
-        );
-        const data = resp.data.bars || {};
-        for (const [sym, bars] of Object.entries(data)) {
-          result[sym] = (bars as any[]).map((b: any) => ({
-            timestamp: b.t,
-            open: b.o,
-            high: b.h,
-            low: b.l,
-            close: b.c,
-            volume: b.v,
-          }));
-        }
-      } catch (err) {
-        this.logger.error(`Multi-bar batch ${i}-${i + batchSize} failed: ${err.message}`);
+    // Check cache for each symbol
+    const uncachedSymbols: string[] = [];
+    for (const symbol of symbols) {
+      const cached = await this.getCachedBars(symbol, timeframe, start, end);
+      if (cached.length > 0) {
+        result[symbol] = cached;
+      } else {
+        uncachedSymbols.push(symbol);
       }
     }
+
+    if (uncachedSymbols.length > 0) {
+      this.logger.log(`Multi-bar cache: ${symbols.length - uncachedSymbols.length} hit, ${uncachedSymbols.length} miss — fetching from Alpaca`);
+
+      const batchSize = 200;
+      for (let i = 0; i < uncachedSymbols.length; i += batchSize) {
+        const batch = uncachedSymbols.slice(i, i + batchSize);
+        const symbolsParam = batch.join(',');
+        try {
+          const resp = await axios.get(
+            `https://data.alpaca.markets/v2/stocks/bars?symbols=${symbolsParam}&timeframe=1Day&start=${start}&end=${end}&limit=10000&feed=iex`,
+            {
+              headers: {
+                'APCA-API-KEY-ID': this.config.get('ALPACA_API_KEY'),
+                'APCA-API-SECRET-KEY': this.config.get('ALPACA_API_SECRET'),
+              },
+            },
+          );
+          const data = resp.data.bars || {};
+          for (const [sym, bars] of Object.entries(data)) {
+            const mapped = (bars as any[]).map((b: any) => ({
+              timestamp: b.t,
+              open: b.o,
+              high: b.h,
+              low: b.l,
+              close: b.c,
+              volume: b.v,
+            }));
+            result[sym] = mapped;
+            // Cache these bars
+            await this.cacheBars(sym, timeframe, mapped);
+          }
+        } catch (err) {
+          this.logger.error(`Multi-bar batch ${i}-${i + batchSize} failed: ${err.message}`);
+        }
+      }
+    } else {
+      this.logger.debug(`Multi-bar cache: all ${symbols.length} symbols served from cache`);
+    }
+
     return result;
+  }
+
+  // ── Bar cache helpers ──────────────────────────────────────
+
+  private async getCachedBars(
+    symbol: string,
+    timeframe: string,
+    start: string,
+    end: string,
+  ): Promise<Bar[]> {
+    const rows = await this.barCacheRepo.find({
+      where: { symbol, timeframe },
+      order: { barDate: 'ASC' },
+    });
+
+    if (rows.length === 0) return [];
+
+    // Filter to requested date range
+    const filtered = rows.filter((r) => r.barDate >= start && r.barDate <= end);
+    if (filtered.length === 0) return [];
+
+    return filtered.map((r) => ({
+      timestamp: r.barDate,
+      open: Number(r.open),
+      high: Number(r.high),
+      low: Number(r.low),
+      close: Number(r.close),
+      volume: Number(r.volume),
+    }));
+  }
+
+  private async cacheBars(
+    symbol: string,
+    timeframe: string,
+    bars: Bar[],
+  ): Promise<void> {
+    // Upsert bars in batches
+    const entities = bars.map((b) =>
+      this.barCacheRepo.create({
+        symbol,
+        timeframe,
+        barDate: b.timestamp,
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+        volume: b.volume,
+      }),
+    );
+
+    // Use chunks to avoid huge inserts
+    const chunkSize = 500;
+    for (let i = 0; i < entities.length; i += chunkSize) {
+      const chunk = entities.slice(i, i + chunkSize);
+      await this.barCacheRepo
+        .createQueryBuilder()
+        .insert()
+        .into(BarCache)
+        .values(chunk)
+        .orIgnore() // skip duplicates
+        .execute();
+    }
   }
 }

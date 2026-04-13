@@ -38,6 +38,12 @@ export class GapScanResult {
   @Column({ length: 10, nullable: true })
   exchange: string;
 
+  @Column({ type: 'int', default: 0 })
+  score: number; // 0-100 quality score based on Emanuel's criteria
+
+  @Column({ type: 'simple-json', nullable: true })
+  scoreReasons: string[]; // human-readable reasons for the score
+
   @Column({ type: 'date' })
   scanDate: string;
 
