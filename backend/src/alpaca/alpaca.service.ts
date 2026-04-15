@@ -82,33 +82,49 @@ export class AlpacaService implements OnModuleInit {
       return cached;
     }
 
-    // Fetch from Alpaca
-    const bars: Bar[] = [];
-    const barsIterator = this.client.getBarsV2(symbol, {
-      timeframe,
-      start,
-      end,
-      limit,
-      feed: 'iex',
-    });
+    // Fetch from Alpaca with retry on rate limit
+    const MAX_RETRIES = 3;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const bars: Bar[] = [];
+        const barsIterator = this.client.getBarsV2(symbol, {
+          timeframe,
+          start,
+          end,
+          limit,
+          feed: 'iex',
+        });
 
-    for await (const bar of barsIterator) {
-      bars.push({
-        timestamp: bar.Timestamp,
-        open: Number(bar.OpenPrice),
-        high: Number(bar.HighPrice),
-        low: Number(bar.LowPrice),
-        close: Number(bar.ClosePrice),
-        volume: Number(bar.Volume),
-      });
+        for await (const bar of barsIterator) {
+          bars.push({
+            timestamp: bar.Timestamp,
+            open: Number(bar.OpenPrice),
+            high: Number(bar.HighPrice),
+            low: Number(bar.LowPrice),
+            close: Number(bar.ClosePrice),
+            volume: Number(bar.Volume),
+          });
+        }
+
+        // Store in cache
+        if (bars.length > 0) {
+          await this.cacheBars(symbol, timeframe, bars);
+        }
+
+        return bars;
+      } catch (err) {
+        const is429 = err?.message?.includes('429') || err?.statusCode === 429;
+        if (is429 && attempt < MAX_RETRIES) {
+          const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+          this.logger.debug(`Rate limited on ${symbol} ${timeframe}, retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        throw err;
+      }
     }
 
-    // Store in cache
-    if (bars.length > 0) {
-      await this.cacheBars(symbol, timeframe, bars);
-    }
-
-    return bars;
+    return [];
   }
 
   async getLatestQuote(symbol: string) {
@@ -219,8 +235,14 @@ export class AlpacaService implements OnModuleInit {
 
     if (rows.length === 0) return [];
 
-    // Filter to requested date range
-    const filtered = rows.filter((r) => r.barDate >= start && r.barDate <= end);
+    // Normalise to UTC ms for reliable comparison (handles mixed timezone strings)
+    const startMs = new Date(start).getTime();
+    const endMs = new Date(end).getTime();
+
+    const filtered = rows.filter((r) => {
+      const t = new Date(r.barDate).getTime();
+      return t >= startMs && t <= endMs;
+    });
     if (filtered.length === 0) return [];
 
     return filtered.map((r) => ({

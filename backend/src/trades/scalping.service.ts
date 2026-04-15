@@ -201,7 +201,7 @@ export class ScalpingService {
       });
 
       const matchedStrategy = this.enabledStrategies.find(
-        (s) => s.name === 'Gap Scalp - Trend Reversal',
+        (s) => s.name === 'Emanuel - Gap Scalp System',
       );
 
       await this.trades.createTradeRecord({

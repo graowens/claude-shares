@@ -7,6 +7,9 @@ import {
   createStrategy,
   updateStrategy,
   toggleStrategy,
+  toggleStrategyBacktest,
+  bulkSetEnabled,
+  bulkSetBacktest,
   deleteStrategy,
   type Strategy,
 } from "@/lib/api";
@@ -24,7 +27,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, FlaskConical, Power, PowerOff } from "lucide-react";
 
 export const strategiesRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -37,6 +40,7 @@ const emptyForm = {
   description: "",
   source: "",
   enabled: true,
+  backtestEnabled: true,
   params: "",
 };
 
@@ -78,6 +82,24 @@ function StrategiesPage() {
       queryClient.invalidateQueries({ queryKey: ["strategies"] }),
   });
 
+  const toggleBacktestMut = useMutation({
+    mutationFn: toggleStrategyBacktest,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["strategies"] }),
+  });
+
+  const bulkEnabledMut = useMutation({
+    mutationFn: bulkSetEnabled,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["strategies"] }),
+  });
+
+  const bulkBacktestMut = useMutation({
+    mutationFn: bulkSetBacktest,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["strategies"] }),
+  });
+
   const deleteMut = useMutation({
     mutationFn: deleteStrategy,
     onSuccess: () => {
@@ -103,6 +125,7 @@ function StrategiesPage() {
       source: form.source || undefined,
       params: parsedParams,
       enabled: form.enabled,
+      backtestEnabled: form.backtestEnabled,
     };
 
     if (editId !== null) {
@@ -119,6 +142,7 @@ function StrategiesPage() {
       description: strategy.description,
       source: strategy.source ?? "",
       enabled: strategy.enabled,
+      backtestEnabled: strategy.backtestEnabled,
       params: strategy.params ? JSON.stringify(strategy.params, null, 2) : "",
     });
     setDialogOpen(true);
@@ -126,6 +150,7 @@ function StrategiesPage() {
 
   const items = strategies.data ?? [];
   const enabledCount = items.filter((s) => s.enabled).length;
+  const backtestCount = items.filter((s) => s.backtestEnabled).length;
 
   return (
     <div className="space-y-6">
@@ -134,20 +159,73 @@ function StrategiesPage() {
           <h1 className="text-2xl font-bold">Strategies</h1>
           {items.length > 0 && (
             <p className="text-sm text-muted-foreground mt-1">
-              {enabledCount} of {items.length} active during trading
+              {enabledCount} live, {backtestCount} backtesting &mdash; {items.length} total
             </p>
           )}
         </div>
-        <Button
-          onClick={() => {
-            setEditId(null);
-            setForm(emptyForm);
-            setDialogOpen(true);
-          }}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Add Strategy
-        </Button>
+        <div className="flex items-center gap-2">
+          {items.length > 0 && (
+            <>
+              <div className="flex items-center gap-1 rounded-md border border-border p-1">
+                <span className="px-1.5 text-xs text-muted-foreground">Live</span>
+                <Button
+                  variant={enabledCount === items.length ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => bulkEnabledMut.mutate(true)}
+                  disabled={bulkEnabledMut.isPending}
+                >
+                  <Power className="mr-1 h-3 w-3" />
+                  All On
+                </Button>
+                <Button
+                  variant={enabledCount === 0 ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => bulkEnabledMut.mutate(false)}
+                  disabled={bulkEnabledMut.isPending}
+                >
+                  <PowerOff className="mr-1 h-3 w-3" />
+                  All Off
+                </Button>
+              </div>
+              <div className="flex items-center gap-1 rounded-md border border-border p-1">
+                <FlaskConical className="ml-1 h-3.5 w-3.5 text-violet-400" />
+                <span className="px-0.5 text-xs text-muted-foreground">Backtest</span>
+                <Button
+                  variant={backtestCount === items.length ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => bulkBacktestMut.mutate(true)}
+                  disabled={bulkBacktestMut.isPending}
+                >
+                  <Power className="mr-1 h-3 w-3" />
+                  All On
+                </Button>
+                <Button
+                  variant={backtestCount === 0 ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => bulkBacktestMut.mutate(false)}
+                  disabled={bulkBacktestMut.isPending}
+                >
+                  <PowerOff className="mr-1 h-3 w-3" />
+                  All Off
+                </Button>
+              </div>
+            </>
+          )}
+          <Button
+            onClick={() => {
+              setEditId(null);
+              setForm(emptyForm);
+              setDialogOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Strategy
+          </Button>
+        </div>
       </div>
 
       {strategies.isLoading ? (
@@ -179,14 +257,24 @@ function StrategiesPage() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">{strategy.name}</CardTitle>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">
-                      {strategy.enabled ? "Active" : "Disabled"}
-                    </span>
-                    <Switch
-                      checked={strategy.enabled}
-                      onCheckedChange={() => toggleMut.mutate(strategy.id)}
-                    />
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1.5">
+                      <FlaskConical className="h-3.5 w-3.5 text-violet-400" />
+                      <span className="text-xs text-muted-foreground">Backtest</span>
+                      <Switch
+                        checked={strategy.backtestEnabled}
+                        onCheckedChange={() => toggleBacktestMut.mutate(strategy.id)}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground">
+                        {strategy.enabled ? "Live" : "Disabled"}
+                      </span>
+                      <Switch
+                        checked={strategy.enabled}
+                        onCheckedChange={() => toggleMut.mutate(strategy.id)}
+                      />
+                    </div>
                   </div>
                 </div>
                 {strategy.source && (
@@ -298,14 +386,25 @@ function StrategiesPage() {
                 }
               />
             </div>
-            <div className="flex items-end gap-2 pb-0.5">
-              <Label>Enabled</Label>
-              <Switch
-                checked={form.enabled}
-                onCheckedChange={(checked) =>
-                  setForm((f) => ({ ...f, enabled: checked }))
-                }
-              />
+            <div className="flex items-end gap-4 pb-0.5">
+              <div className="flex items-center gap-2">
+                <Label>Live</Label>
+                <Switch
+                  checked={form.enabled}
+                  onCheckedChange={(checked) =>
+                    setForm((f) => ({ ...f, enabled: checked }))
+                  }
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Label>Backtest</Label>
+                <Switch
+                  checked={form.backtestEnabled}
+                  onCheckedChange={(checked) =>
+                    setForm((f) => ({ ...f, backtestEnabled: checked }))
+                  }
+                />
+              </div>
             </div>
           </div>
           <div className="space-y-2">

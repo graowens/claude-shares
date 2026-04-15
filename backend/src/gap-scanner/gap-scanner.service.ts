@@ -58,6 +58,148 @@ export class GapScannerService {
    * Gap size alone does NOT determine quality — a 15% gap can fail,
    * a 58% gap can work. Structure > size.
    */
+  /**
+   * Check if 200MA is "relatively flat" as Emanuel requires.
+   * Compares 200MA now vs 200MA from 20 bars ago — if slope > 5%, it's trending.
+   */
+  private is200MAFlat(bars: Array<{ close: number }>, ma200Now: number): boolean {
+    if (bars.length < 220) return true; // not enough data, assume flat
+    const slice20ago = bars.slice(-220, -20);
+    if (slice20ago.length < 200) return true;
+    const ma200then = slice20ago.slice(-200).reduce((s, b) => s + b.close, 0) / 200;
+    const slopePercent = Math.abs(ma200Now - ma200then) / ma200then * 100;
+    return slopePercent < 5; // < 5% change over 20 bars = relatively flat
+  }
+
+  /**
+   * Find swing highs/lows from daily bars for proper S/R detection.
+   * A swing high has lower highs on both sides (3-bar pivot).
+   * A swing low has higher lows on both sides.
+   */
+  private findSwingLevels(bars: Array<{ high: number; low: number; close: number }>): {
+    swingHighs: number[];
+    swingLows: number[];
+  } {
+    const swingHighs: number[] = [];
+    const swingLows: number[] = [];
+    for (let i = 2; i < bars.length - 2; i++) {
+      // 5-bar pivot: middle bar higher/lower than 2 on each side
+      if (
+        bars[i].high > bars[i - 1].high && bars[i].high > bars[i - 2].high &&
+        bars[i].high > bars[i + 1].high && bars[i].high > bars[i + 2].high
+      ) {
+        swingHighs.push(bars[i].high);
+      }
+      if (
+        bars[i].low < bars[i - 1].low && bars[i].low < bars[i - 2].low &&
+        bars[i].low < bars[i + 1].low && bars[i].low < bars[i + 2].low
+      ) {
+        swingLows.push(bars[i].low);
+      }
+    }
+    return { swingHighs, swingLows };
+  }
+
+  /**
+   * Determine dailyContext using proper swing structure analysis.
+   * Uses full daily bar history, not just 10-day high/low.
+   */
+  private determineDailyContext(
+    bars: Array<{ high: number; low: number; close: number }>,
+    gapPercent: number,
+    prevClose: number,
+    openPrice: number,
+    ma200: number | null,
+    trendDirection: string,
+  ): string {
+    const isGapUp = gapPercent > 0;
+    const { swingHighs, swingLows } = bars.length >= 10
+      ? this.findSwingLevels(bars.slice(-60)) // Use last 60 bars (~3 months)
+      : { swingHighs: [], swingLows: [] };
+
+    if (isGapUp) {
+      // Best: gap ends a downtrend (Emanuel's #1 rule)
+      if (trendDirection === 'downtrend') {
+        return 'gap_ends_downtrend';
+      }
+      // Gap crosses above 200MA
+      if (ma200 !== null && prevClose < ma200 && openPrice > ma200) {
+        return 'gap_above_200ma';
+      }
+      // Gap breaks above swing high resistance (proper S/R)
+      if (swingHighs.length >= 1) {
+        const recentSwingHigh = swingHighs[swingHighs.length - 1];
+        if (prevClose <= recentSwingHigh && openPrice > recentSwingHigh) {
+          return 'gap_above_resistance';
+        }
+      }
+      // Fallback: breaks above recent 20-day high
+      if (bars.length >= 20) {
+        const recentMax = Math.max(...bars.slice(-20).map(b => b.high));
+        if (openPrice > recentMax) {
+          return 'gap_above_resistance';
+        }
+      }
+    } else {
+      // Gap crosses below 200MA
+      if (ma200 !== null && prevClose > ma200 && openPrice < ma200) {
+        return 'gap_below_200ma';
+      }
+      // Gap ends an uptrend
+      if (trendDirection === 'uptrend') {
+        return 'gap_ends_uptrend';
+      }
+      // Gap breaks below swing low support (proper S/R)
+      if (swingLows.length >= 1) {
+        const recentSwingLow = swingLows[swingLows.length - 1];
+        if (prevClose >= recentSwingLow && openPrice < recentSwingLow) {
+          return 'gap_below_support';
+        }
+      }
+      // Fallback: breaks below recent 20-day low
+      if (bars.length >= 20) {
+        const recentMin = Math.min(...bars.slice(-20).map(b => b.low));
+        if (openPrice < recentMin) {
+          return 'gap_below_support';
+        }
+      }
+    }
+
+    return 'other';
+  }
+
+  /**
+   * Calculate trend direction using a wider window (10-day comparison).
+   * Also returns the 20MA values for use in scoring.
+   */
+  private calculateTrend(bars: Array<{ close: number }>): {
+    trendDirection: string;
+    ma20: number | null;
+    ma20TenDaysAgo: number | null;
+  } {
+    if (bars.length < 20) return { trendDirection: 'sideways', ma20: null, ma20TenDaysAgo: null };
+
+    const last20 = bars.slice(-20);
+    const ma20 = last20.reduce((sum, b) => sum + b.close, 0) / 20;
+
+    let ma20TenDaysAgo: number | null = null;
+    if (bars.length >= 30) {
+      // 20MA from 10 bars ago (wider window than the old 5-bar comparison)
+      const prev20 = bars.slice(-30, -10);
+      ma20TenDaysAgo = prev20.reduce((sum, b) => sum + b.close, 0) / 20;
+    }
+
+    let trendDirection = 'sideways';
+    if (ma20 !== null && ma20TenDaysAgo !== null) {
+      const changePct = ((ma20 - ma20TenDaysAgo) / ma20TenDaysAgo) * 100;
+      // Need > 0.5% change over 10 bars to count as trending (avoids noise)
+      if (changePct > 0.5) trendDirection = 'uptrend';
+      else if (changePct < -0.5) trendDirection = 'downtrend';
+    }
+
+    return { trendDirection, ma20, ma20TenDaysAgo };
+  }
+
   private scoreGap(candidate: {
     gapPercent: number;
     prevClose: number;
@@ -68,6 +210,7 @@ export class GapScannerService {
     trendDirection: string;
     dailyContext: string;
     bars?: Array<{ close: number; high: number; low: number }>;
+    ma200Flat?: boolean;
   }): { score: number; reasons: string[] } {
     let score = 0;
     const reasons: string[] = [];
@@ -92,9 +235,8 @@ export class GapScannerService {
     // Emanuel: "It gapped above this prior pivot. It gapped above
     //  this lower high" — confirms the trend break is real
     // ──────────────────────────────────────────────────────────
-    if (candidate.bars && candidate.bars.length >= 20) {
-      const recent = candidate.bars.slice(-20);
-      const pivotBreak = this.detectPivotBreak(recent, candidate.currentPrice, isGapUp);
+    if (candidate.bars && candidate.bars.length >= 10) {
+      const pivotBreak = this.detectPivotBreak(candidate.bars, candidate.currentPrice, isGapUp);
       if (pivotBreak) {
         score += 20;
         reasons.push('Gap breaks above prior pivot highs — confirms trend reversal');
@@ -105,15 +247,20 @@ export class GapScannerService {
     // RULE 3: Gap crosses key level — 200MA or support/resistance (20 pts)
     // Emanuel: "It gapped above the 200 MA" = very bullish
     // A gap crossing 200MA triggers institutional participation
+    // 200MA should be "relatively flat" to be effective
     // ──────────────────────────────────────────────────────────
     if (candidate.dailyContext === 'gap_above_200ma' || candidate.dailyContext === 'gap_below_200ma') {
-      score += 20;
-      reasons.push('Gap crosses 200MA — major level break, institutional trigger');
+      if (candidate.ma200Flat !== false) {
+        score += 20;
+        reasons.push('Gap crosses flat 200MA — major institutional level');
+      } else {
+        score += 10;
+        reasons.push('Gap crosses 200MA but MA is steeply trending (less effective)');
+      }
     } else if (candidate.dailyContext === 'gap_above_resistance' || candidate.dailyContext === 'gap_below_support') {
       score += 15;
       reasons.push('Gap clears key support/resistance level');
     } else if (candidate.dailyContext === 'other') {
-      // No recognisable daily structure — Emanuel would skip this
       score -= 10;
       reasons.push('No clear daily chart context — Emanuel would skip');
     }
@@ -132,12 +279,9 @@ export class GapScannerService {
         (isGapUp && candidate.trendDirection === 'downtrend') ||
         (!isGapUp && candidate.trendDirection === 'uptrend')
       ) {
-        // 20MA was trending against the gap — confirms there IS a trend to reverse
         score += 15;
         reasons.push('20MA confirms prior trend existed — real reversal');
       } else {
-        // 20MA already aligned with gap — continuation, not reversal
-        // Emanuel's strategy is about reversals, not continuations
         score += 5;
         reasons.push('20MA already aligned with gap — continuation (not Emanuel\'s primary setup)');
       }
@@ -178,16 +322,20 @@ export class GapScannerService {
     gapPrice: number,
     isGapUp: boolean,
   ): boolean {
-    // Find swing highs and lows using a simple 3-bar pivot detection
+    // Use the last 40 bars (~2 months) for relevant pivot detection
+    const recent = bars.slice(-40);
+    if (recent.length < 5) return false;
+
+    // Find swing highs and lows using 3-bar pivot detection
     const pivotHighs: number[] = [];
     const pivotLows: number[] = [];
 
-    for (let i = 1; i < bars.length - 1; i++) {
-      if (bars[i].high > bars[i - 1].high && bars[i].high > bars[i + 1].high) {
-        pivotHighs.push(bars[i].high);
+    for (let i = 1; i < recent.length - 1; i++) {
+      if (recent[i].high > recent[i - 1].high && recent[i].high > recent[i + 1].high) {
+        pivotHighs.push(recent[i].high);
       }
-      if (bars[i].low < bars[i - 1].low && bars[i].low < bars[i + 1].low) {
-        pivotLows.push(bars[i].low);
+      if (recent[i].low < recent[i - 1].low && recent[i].low < recent[i + 1].low) {
+        pivotLows.push(recent[i].low);
       }
     }
 
@@ -334,75 +482,30 @@ export class GapScannerService {
           endDate.toISOString().split('T')[0],
         );
 
-        let ma20: number | null = null;
+        // Calculate trend using wider 10-day window
+        const trend = this.calculateTrend(bars);
+        const { trendDirection, ma20 } = trend;
+
+        // Calculate 200MA
         let ma200: number | null = null;
-        let ma20FiveDaysAgo: number | null = null;
-        let trendDirection = 'sideways';
-        let dailyContext = 'other';
-
-        if (bars.length >= 20) {
-          // Calculate 20MA (last 20 bars)
-          const last20 = bars.slice(-20);
-          ma20 = last20.reduce((sum, b) => sum + b.close, 0) / 20;
-
-          // Calculate 20MA from 5 bars ago
-          if (bars.length >= 25) {
-            const prev20 = bars.slice(-25, -5);
-            ma20FiveDaysAgo = prev20.reduce((sum, b) => sum + b.close, 0) / 20;
-          }
-        }
-
+        let ma200Flat = true;
         if (bars.length >= 200) {
           const last200 = bars.slice(-200);
           ma200 = last200.reduce((sum, b) => sum + b.close, 0) / 200;
+          ma200Flat = this.is200MAFlat(bars, ma200);
         }
 
-        // Determine trend direction
-        if (ma20 !== null && ma20FiveDaysAgo !== null) {
-          if (ma20 > ma20FiveDaysAgo) {
-            trendDirection = 'uptrend';
-          } else if (ma20 < ma20FiveDaysAgo) {
-            trendDirection = 'downtrend';
-          }
-        }
+        // Determine daily context using proper swing structure
+        const dailyContext = this.determineDailyContext(
+          bars,
+          candidate.gapPercent,
+          candidate.prevClose,
+          candidate.currentPrice,
+          ma200,
+          trendDirection,
+        );
 
-        // Determine daily context
-        if (candidate.gapPercent > 0) {
-          // Gap-up contexts
-          if (trendDirection === 'downtrend') {
-            dailyContext = 'gap_ends_downtrend';
-          } else if (
-            ma200 !== null &&
-            candidate.prevClose < ma200 &&
-            candidate.currentPrice > ma200
-          ) {
-            dailyContext = 'gap_above_200ma';
-          } else if (bars.length >= 10) {
-            const recentHighs = bars.slice(-10).map((b) => b.close);
-            const recentMax = Math.max(...recentHighs);
-            if (candidate.currentPrice > recentMax) {
-              dailyContext = 'gap_above_resistance';
-            }
-          }
-        } else {
-          // Gap-down contexts
-          if (
-            ma200 !== null &&
-            candidate.prevClose > ma200 &&
-            candidate.currentPrice < ma200
-          ) {
-            dailyContext = 'gap_below_200ma';
-          } else if (trendDirection === 'uptrend') {
-            dailyContext = 'gap_ends_uptrend';
-          } else if (bars.length >= 10) {
-            const recentLows = bars.slice(-10).map((b) => b.close);
-            const recentMin = Math.min(...recentLows);
-            if (candidate.currentPrice < recentMin) {
-              dailyContext = 'gap_below_support';
-            }
-          }
-        }
-
+        // Score with full bars for pivot detection
         const { score, reasons } = this.scoreGap({
           gapPercent: candidate.gapPercent,
           prevClose: candidate.prevClose,
@@ -412,6 +515,8 @@ export class GapScannerService {
           ma200,
           trendDirection,
           dailyContext,
+          bars,
+          ma200Flat,
         });
 
         const result = this.repo.create({
@@ -448,6 +553,28 @@ export class GapScannerService {
     const scanDate = date || new Date().toISOString().split('T')[0];
     return this.repo.find({
       where: { scanDate },
+      order: { gapPercent: 'DESC' },
+    });
+  }
+
+  async getAllScanDates(): Promise<string[]> {
+    const raw = await this.repo
+      .createQueryBuilder('g')
+      .select('DISTINCT g.scanDate', 'scanDate')
+      .orderBy('g.scanDate', 'ASC')
+      .getRawMany();
+    return raw.map((r) => {
+      // MySQL may return Date object or string — normalise to YYYY-MM-DD
+      const d = r.scanDate;
+      if (d instanceof Date) return d.toISOString().split('T')[0];
+      if (typeof d === 'string' && d.length > 10) return d.split('T')[0];
+      return String(d);
+    });
+  }
+
+  async getAllResults(date: string): Promise<GapScanResult[]> {
+    return this.repo.find({
+      where: { scanDate: date },
       order: { gapPercent: 'DESC' },
     });
   }
@@ -566,51 +693,30 @@ export class GapScannerService {
         const barsUpToDate = bars.slice(0, dateBarIndex + 1);
         const prevBar = bars[dateBarIndex - 1];
 
-        let ma20: number | null = null;
+        // Calculate trend using wider 10-day window
+        const trend = this.calculateTrend(barsUpToDate);
+        const { trendDirection, ma20 } = trend;
+
+        // Calculate 200MA + flatness check
         let ma200: number | null = null;
-        let ma20FiveDaysAgo: number | null = null;
-        let trendDirection = 'sideways';
-        let dailyContext = 'other';
-
-        if (barsUpToDate.length >= 20) {
-          const last20 = barsUpToDate.slice(-20);
-          ma20 = last20.reduce((sum, b) => sum + b.close, 0) / 20;
-          if (barsUpToDate.length >= 25) {
-            const prev20 = barsUpToDate.slice(-25, -5);
-            ma20FiveDaysAgo = prev20.reduce((sum, b) => sum + b.close, 0) / 20;
-          }
-        }
-
+        let ma200Flat = true;
         if (barsUpToDate.length >= 200) {
           const last200 = barsUpToDate.slice(-200);
           ma200 = last200.reduce((sum, b) => sum + b.close, 0) / 200;
+          ma200Flat = this.is200MAFlat(barsUpToDate, ma200);
         }
 
-        if (ma20 !== null && ma20FiveDaysAgo !== null) {
-          if (ma20 > ma20FiveDaysAgo) trendDirection = 'uptrend';
-          else if (ma20 < ma20FiveDaysAgo) trendDirection = 'downtrend';
-        }
+        // Determine daily context using proper swing structure
+        const dailyContext = this.determineDailyContext(
+          barsUpToDate,
+          candidate.gapPercent,
+          prevBar.close,
+          candidate.openPrice,
+          ma200,
+          trendDirection,
+        );
 
-        if (candidate.gapPercent > 0) {
-          if (trendDirection === 'downtrend') {
-            dailyContext = 'gap_ends_downtrend';
-          } else if (ma200 !== null && prevBar.close < ma200 && candidate.openPrice > ma200) {
-            dailyContext = 'gap_above_200ma';
-          } else if (barsUpToDate.length >= 10) {
-            const recentMax = Math.max(...barsUpToDate.slice(-10).map((b) => b.close));
-            if (candidate.openPrice > recentMax) dailyContext = 'gap_above_resistance';
-          }
-        } else {
-          if (ma200 !== null && prevBar.close > ma200 && candidate.openPrice < ma200) {
-            dailyContext = 'gap_below_200ma';
-          } else if (trendDirection === 'uptrend') {
-            dailyContext = 'gap_ends_uptrend';
-          } else if (barsUpToDate.length >= 10) {
-            const recentMin = Math.min(...barsUpToDate.slice(-10).map((b) => b.close));
-            if (candidate.openPrice < recentMin) dailyContext = 'gap_below_support';
-          }
-        }
-
+        // Score with full bars for pivot detection
         const { score, reasons } = this.scoreGap({
           gapPercent: candidate.gapPercent,
           prevClose: candidate.prevClose,
@@ -621,6 +727,7 @@ export class GapScannerService {
           trendDirection,
           dailyContext,
           bars: barsUpToDate,
+          ma200Flat,
         });
 
         results.push(this.repo.create({

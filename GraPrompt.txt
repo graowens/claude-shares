@@ -34,3 +34,17 @@ create a .gitignore for this project
 1 - use alpca
 2 - do stocks that have dropped that Emanuel focuses on.  I do not think my account allows to short stocks
 3 - yes. I want to enter a total amount of money for that day e.g. £100 and you use these strategys to to morning scalping. I want another 2 settings for stops both above and below our total money for that day.  If you say went less than £20 we would stop or makde more than £180 we would stop.
+
+----
+
+In the transcripts section, create a section for each persons transcripts, group their strategies by their name. I want to be able to upload new transscripts and strategys are created or over written that belong to them. Each transcript will also have a name, for the current stategies just call them 'Strat 1..2..3' etc, I will rename after.  Store the strategys as text in the database with CRUD options.
+
+When I 'Run Backtest on Selected' can you suggest why or why not the outcome is what it is, based off Each persons strategys.
+Can you also show the outcome from using each persons strategy.  I want to understand which person is more realiable than the other based off what they suggest.
+
+Ask any questions, you have permissions to do anything for this
+----
+
+----
+----
+

@@ -33,4 +33,29 @@ export class BacktestController {
   getResult(@Param('id') id: number) {
     return this.backtestService.getResult(id);
   }
+
+  @Post('optimise-claude')
+  optimiseClaude(@Body() body?: { startingCapital?: number }) {
+    return this.backtestService.optimiseClaude(body?.startingCapital || 10000);
+  }
+
+  @Post('emanuel-picks')
+  emanuelPicks(@Body() body: { endDate: string; startingCapital?: number }) {
+    return this.backtestService.emanuelTopPicks(
+      body.endDate,
+      body.startingCapital || 1000,
+    );
+  }
+
+  @Post('backfill')
+  backfill(@Body() body: { startDate: string; endDate: string }) {
+    // Fire and forget — returns immediately, runs in background
+    this.backtestService.runBackfill(body.startDate, body.endDate);
+    return { message: 'Backfill started', startDate: body.startDate, endDate: body.endDate };
+  }
+
+  @Get('backfill/progress')
+  backfillProgress() {
+    return this.backtestService.getBackfillProgress();
+  }
 }

@@ -19,10 +19,18 @@ export class UpdateStrategyDto {
   source?: string;
 
   @IsOptional()
+  @IsString()
+  author?: string;
+
+  @IsOptional()
   @IsObject()
   params?: Record<string, any>;
 
   @IsOptional()
   @IsBoolean()
   enabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  backtestEnabled?: boolean;
 }

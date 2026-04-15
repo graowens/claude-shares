@@ -168,17 +168,30 @@ export const runScraper = () =>
 
 // Transcripts
 export interface Transcript {
-  id: string;
-  filename: string;
-  title: string;
+  id: number;
+  author: string;
+  name: string;
+  content?: string;
   createdAt: string;
 }
 
 export const getTranscripts = () =>
   request<Transcript[]>("/transcripts");
 
-export const getTranscriptContent = (id: string) =>
-  request<{ content: string }>(`/transcripts/${id}`);
+export const getTranscriptsByAuthor = () =>
+  request<Record<string, Transcript[]>>("/transcripts/by-author");
+
+export const getTranscriptContent = (id: number) =>
+  request<Transcript>(`/transcripts/${id}`);
+
+export const createTranscript = (data: { author: string; name: string; content: string }) =>
+  request<Transcript>("/transcripts", { method: "POST", body: JSON.stringify(data) });
+
+export const updateTranscript = (id: number, data: Partial<Transcript>) =>
+  request<Transcript>(`/transcripts/${id}`, { method: "PUT", body: JSON.stringify(data) });
+
+export const deleteTranscript = (id: number) =>
+  request<void>(`/transcripts/${id}`, { method: "DELETE" });
 
 // Strategies
 export interface Strategy {
@@ -186,8 +199,10 @@ export interface Strategy {
   name: string;
   description: string;
   source: string | null;
+  author: string | null;
   params: Record<string, any> | null;
   enabled: boolean;
+  backtestEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -196,7 +211,10 @@ export const getStrategies = () => request<Strategy[]>("/strategies");
 
 export const getEnabledStrategies = () => request<Strategy[]>("/strategies/enabled");
 
-export const createStrategy = (data: { name: string; description: string; source?: string; params?: Record<string, any>; enabled?: boolean }) =>
+export const getStrategiesByAuthor = () =>
+  request<Record<string, Strategy[]>>("/strategies/by-author");
+
+export const createStrategy = (data: { name: string; description: string; source?: string; author?: string; params?: Record<string, any>; enabled?: boolean }) =>
   request<Strategy>("/strategies", { method: "POST", body: JSON.stringify(data) });
 
 export const updateStrategy = (id: number, data: Partial<Strategy>) =>
@@ -204,6 +222,21 @@ export const updateStrategy = (id: number, data: Partial<Strategy>) =>
 
 export const toggleStrategy = (id: number) =>
   request<Strategy>(`/strategies/${id}/toggle`, { method: "PATCH" });
+
+export const toggleStrategyBacktest = (id: number) =>
+  request<Strategy>(`/strategies/${id}/toggle-backtest`, { method: "PATCH" });
+
+export const bulkSetEnabled = (enabled: boolean) =>
+  request<Strategy[]>("/strategies/bulk-enabled", {
+    method: "PATCH",
+    body: JSON.stringify({ enabled }),
+  });
+
+export const bulkSetBacktest = (backtestEnabled: boolean) =>
+  request<Strategy[]>("/strategies/bulk-backtest", {
+    method: "PATCH",
+    body: JSON.stringify({ backtestEnabled }),
+  });
 
 export const deleteStrategy = (id: number) =>
   request<void>(`/strategies/${id}`, { method: "DELETE" });
@@ -276,6 +309,23 @@ export const clearSelectedGaps = (date?: string) =>
     body: JSON.stringify({ date }),
   });
 
+// Per-author backtest result
+export interface PerAuthorResult {
+  stopLoss: number;
+  takeProfit: number;
+  totalPnl: number;
+  winRate: number;
+  totalTrades: number;
+  wins: number;
+  losses: number;
+  maxDrawdown: number;
+  finalEquity: number;
+  entryMethod?: string;
+  skippedStocks?: number;
+  skippedReasons?: string[];
+  explanation?: string;
+}
+
 // Backtest from gap scan results
 export interface BacktestFromGapsResult {
   id: number;
@@ -312,6 +362,7 @@ export interface BacktestFromGapsResult {
       totalPnl: number;
       winRate: number;
     };
+    perAuthorResults?: Record<string, PerAuthorResult>;
   };
   createdAt: string;
 }
@@ -340,3 +391,95 @@ export interface ExchangeInfo {
 }
 
 export const getExchanges = () => request<ExchangeInfo>("/exchanges");
+
+// Claude Strategy Optimiser
+export interface ClaudeParams {
+  swingLookback: number;
+  waitBars: number;
+  stopBuffer: number;
+  rejectionThreshold: number;
+}
+
+export interface ClaudeOptimiseResult {
+  bestParams: ClaudeParams;
+  bestPnl: number;
+  bestWinRate: number;
+  bestTrades: number;
+  allParamResults: Array<{
+    params: ClaudeParams;
+    totalPnl: number;
+    winRate: number;
+    totalTrades: number;
+    wins: number;
+    losses: number;
+  }>;
+  perDateBreakdown: Array<{
+    scanDate: string;
+    tradingDay: string;
+    stocks: number;
+    setupsBuilt: number;
+    trades: number;
+    pnl: number;
+    winRate: number;
+  }>;
+  datesScanned: number;
+  totalStocksAnalysed: number;
+}
+
+export const optimiseClaude = (startingCapital?: number) =>
+  request<ClaudeOptimiseResult>("/backtest/optimise-claude", {
+    method: "POST",
+    body: JSON.stringify({ startingCapital }),
+  });
+
+// Emanuel Top Picks
+export interface EmanuelPickTrade {
+  side: string;
+  entryPrice: number;
+  exitPrice: number;
+  pnl: number;
+  pnlPercent: number;
+  exitReason: string;
+  shares: number;
+}
+
+export interface EmanuelPick {
+  symbol: string;
+  gapPercent: number;
+  score: number;
+  scoreReasons: string[];
+  dailyContext: string;
+  trendDirection: string;
+  ma20: number | null;
+  ma200: number | null;
+  trade: EmanuelPickTrade | null;
+  skippedReason: string | null;
+}
+
+export interface EmanuelPicksDay {
+  scanDate: string;
+  tradingDay: string;
+  picks: EmanuelPick[];
+  dayPnl: number;
+  dayTrades: number;
+  dayWins: number;
+}
+
+export interface EmanuelPicksResult {
+  days: EmanuelPicksDay[];
+  totals: {
+    totalPnl: number;
+    totalTrades: number;
+    totalWins: number;
+    winRate: number;
+    daysAnalysed: number;
+    bestDay: { date: string; pnl: number } | null;
+    worstDay: { date: string; pnl: number } | null;
+  };
+}
+
+export const getEmanuelPicks = (endDate: string, startingCapital?: number) =>
+  request<EmanuelPicksResult>("/backtest/emanuel-picks", {
+    method: "POST",
+    body: JSON.stringify({ endDate, startingCapital }),
+  });

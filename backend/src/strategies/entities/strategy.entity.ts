@@ -20,11 +20,17 @@ export class Strategy {
   @Column({ nullable: true })
   source: string; // e.g. "emmanuel-1.txt", "trading-live-best-scalper.txt"
 
+  @Column({ nullable: true })
+  author: string; // e.g. "Emanuel", "Fabio"
+
   @Column({ type: 'simple-json', nullable: true })
   params: Record<string, any>; // strategy-specific parameters
 
   @Column({ default: false })
   enabled: boolean;
+
+  @Column({ default: true })
+  backtestEnabled: boolean;
 
   @CreateDateColumn()
   createdAt: Date;

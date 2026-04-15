@@ -17,10 +17,18 @@ export class CreateStrategyDto {
   source?: string;
 
   @IsOptional()
+  @IsString()
+  author?: string;
+
+  @IsOptional()
   @IsObject()
   params?: Record<string, any>;
 
   @IsOptional()
   @IsBoolean()
   enabled?: boolean = false;
+
+  @IsOptional()
+  @IsBoolean()
+  backtestEnabled?: boolean = true;
 }

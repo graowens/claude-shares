@@ -29,6 +29,13 @@ export class StrategiesService implements OnModuleInit {
     });
   }
 
+  async findBacktestEnabled(): Promise<Strategy[]> {
+    return this.repo.find({
+      where: { backtestEnabled: true },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
   async findOne(id: number): Promise<Strategy> {
     return this.repo.findOneByOrFail({ id });
   }
@@ -49,100 +56,172 @@ export class StrategiesService implements OnModuleInit {
     return this.repo.save(strategy);
   }
 
+  async toggleBacktest(id: number): Promise<Strategy> {
+    const strategy = await this.findOne(id);
+    strategy.backtestEnabled = !strategy.backtestEnabled;
+    return this.repo.save(strategy);
+  }
+
+  async bulkSetEnabled(enabled: boolean): Promise<Strategy[]> {
+    await this.repo.createQueryBuilder()
+      .update(Strategy)
+      .set({ enabled })
+      .execute();
+    return this.findAll();
+  }
+
+  async bulkSetBacktest(backtestEnabled: boolean): Promise<Strategy[]> {
+    await this.repo.createQueryBuilder()
+      .update(Strategy)
+      .set({ backtestEnabled })
+      .execute();
+    return this.findAll();
+  }
+
   async remove(id: number): Promise<void> {
     await this.repo.delete(id);
   }
 
+  async findByAuthor(): Promise<Record<string, Strategy[]>> {
+    const all = await this.repo.find({ order: { createdAt: 'ASC' } });
+    const grouped: Record<string, Strategy[]> = {};
+    for (const s of all) {
+      const key = s.author || 'Unknown';
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(s);
+    }
+    return grouped;
+  }
+
+  async getAuthorDefaults(): Promise<Record<string, { stopLoss: number; takeProfit: number }>> {
+    const grouped = await this.findByAuthor();
+    const defaults: Record<string, { stopLoss: number; takeProfit: number }> = {};
+    for (const [author, strategies] of Object.entries(grouped)) {
+      // Only include authors that have at least one backtest-enabled strategy
+      const btEnabled = strategies.filter((s) => s.backtestEnabled);
+      if (btEnabled.length === 0) continue;
+      const primary = btEnabled.find((s) => s.enabled) || btEnabled[0];
+      const params = primary?.params || {};
+      defaults[author] = {
+        stopLoss: params.stopLossPercent ?? 1,
+        takeProfit: params.takeProfitPercent ?? 2,
+      };
+    }
+    return defaults;
+  }
+
   private async seedDefaults() {
+    // Delete old fragmented Emanuel strategies that were split into 6
+    const oldEmanuelNames = [
+      'Strat 1 - Gap Scalp Trend Reversal',
+      'Strat 2 - Opening Range Breakout',
+      'Strat 3 - 20MA Trend Following',
+      'Strat 4 - 200MA Support & Resistance',
+      'Strat 5 - Bar-by-Bar Trail Management',
+      'Strat 6 - 1-2-3 Pattern Entry',
+      // Also clean up any older naming variants
+      'Gap Scalp - Trend Reversal',
+      'Opening Range Breakout',
+      'Opening Range Breakout (High-Low)',
+      '20MA Trend Following',
+      '200MA Support & Resistance',
+      'Bar-by-Bar Trail Management',
+      '1-2-3 Pattern Entry',
+      'AAA Value Area Setup',
+      'Momentum Squeeze',
+      'Hyper-Scalping Risk Model',
+    ];
+    for (const oldName of oldEmanuelNames) {
+      const old = await this.repo.findOneBy({ name: oldName });
+      if (old) {
+        await this.repo.remove(old);
+        this.logger.log(`Deleted old fragmented strategy: ${oldName}`);
+      }
+    }
+
     const defaults = [
       {
-        name: 'Gap Scalp - Trend Reversal',
-        description: `Emanuel's core gap scalping strategy. Every morning, scan for stocks gapping up that END a pre-existing downtrend on the daily timeframe, OR stocks gapping down that END a pre-existing uptrend. For gap-ups: the gap should break above prior lower highs, trapping short sellers and triggering a squeeze. For gap-downs: the gap should break below prior higher lows, trapping long holders and triggering a sell-off. Three criteria for high-quality gaps: (1) Gap ends a trend - surprises all participants on the wrong side, forcing them to exit. (2) Gap clears a key support/resistance area, triggering a larger-term daily/weekly breakout/breakdown. (3) Gap opens directly above resistance (longs) or directly below support (shorts). Focus on stocks showing clear momentum with significant pre-market volume. Pass on 95% of gaps - only take the highest quality ones with a matching intraday setup.`,
-        source: 'Emmanuel - My Scalping Strategy is BORING.txt',
+        name: 'Emanuel - Gap Scalp System',
+        author: 'Emanuel',
+        description: `Emanuel's complete gap scalping system (consolidated from all transcripts). This is ONE integrated strategy with multiple components:
+
+SCANNING: Every morning, scan for stocks gapping up that END a pre-existing downtrend, or gapping down that END an uptrend. Three criteria for high-quality gaps: (1) Gap ends a trend, (2) Gap clears key support/resistance, (3) Gap opens directly above resistance or below support. Pass on 95% of gaps.
+
+200MA BIAS: The 200MA (daily, should be relatively flat) acts as a FLOOR when price is above it and a CEILING when price is below it. Gap UP above 200MA = very bullish, triggers major breakout. Gap DOWN below 200MA = bearish, look for shorts. Squeeze play: rising 20MA crosses through flat 200MA, prices oscillate until explosive breakout.
+
+20MA TREND FILTER: The 20MA is the primary trend-following tool. Rising 20MA under price = uptrend (buy retrace to 20MA). Declining 20MA over price = downtrend (short retrace to 20MA). IGNORE flat 20MAs — no momentum. Use daily 20MA for bias, intraday 20MA for entries. Also measures extension — too far from 20MA means overextended.
+
+ENTRY METHODS (try in order):
+1. Opening Range Breakout: First 5-min candle high/low as entry trigger, stop other side. Skip if candle too wide (>3%).
+2. Breakout: Consolidation into rising 20MA, entry over base, stop under base.
+3. Retracement: Pullback to 20MA, look for bottoming tail or doji, entry above it.
+4. 1-2-3 Pattern: Igniting bar → resting bar (doji/bottoming tail) → triggering bar breaks resting bar high/low.
+
+TRADE MANAGEMENT (Bar-by-Bar Trail): Once at 2:1 R:R, activate bar-by-bar trailing — raise stop to each completed bar's low (longs) or high (shorts). Start on 15-min bars for room to breathe. Tighten to 5-min bars once past 4-5R to lock in profits.`,
+        source: 'All Emanuel transcripts',
         params: {
+          stopLossPercent: 1,
+          takeProfitPercent: 2,
           minGapPercent: 5,
-          preferredGapPercent: 15,
-          entryTypes: ['opening_range_breakout', 'breakout', 'retracement'],
-          maxEntryDelayMinutes: 60,
-          dailyTimeframeAnalysis: true,
+          minScoreForTrade: 30,
+          maxOpeningRangePercent: 3,
+          ma20Period: 20,
+          ma200Period: 200,
+          barByBarActivateAtRR: 2,
+          barByBarTightenAtRR: 5,
+          initialTrailBars: 3,
+          tightTrailBars: 1,
         },
         enabled: true,
+        backtestEnabled: true,
       },
       {
-        name: 'Opening Range Breakout (High-Low)',
-        description: `Emanuel's opening range breakout / high-low setup. Wait for the first candle to form after market open (preferably 5-minute for safety, or 1-2 minute for aggressive entries). For gap-ups: place entry ABOVE the candle's high, stop-loss BELOW the candle's low. For gap-downs: place entry BELOW the candle's low, stop-loss ABOVE the candle's high. The smaller the first candle (narrow range), the better the risk:reward. Avoid if the first candle is massive. This is the most aggressive entry method - best used when you're very confident in the daily gap quality. On 1-2 minute timeframes you can get shaken out easily; 5-minute is recommended.`,
-        source: 'Emmanuel - My Scalping Strategy is BORING.txt',
+        name: 'Claude - Stop Gap Reversal',
+        author: 'Claude',
+        description: `Claude's counter-trend strategy exploiting stop-loss cascades. When a stock gaps through a key support/resistance level (recent swing highs/lows, 200MA, 20MA), it triggers a wave of stop-loss orders. This creates a temporary liquidity imbalance — once the stops are exhausted, selling/buying pressure disappears and price tends to snap back toward the breached level.
+
+S/R DETECTION (from 30 days of daily bars): Identify swing lows (higher bars on both sides) and swing highs as key levels where stop orders cluster. Also use 200MA and 20MA as institutional S/R levels.
+
+STOP GAP FILTER: The gap must punch THROUGH at least one identified S/R level. Gap down through support = sell stops triggered = reversal buy. Gap up through resistance = buy stops triggered = reversal short. Stronger signal when multiple S/R levels are breached.
+
+ENTRY: Wait 2-3 intraday bars (10-15 min) for the stop cascade to exhaust. Look for a reversal bar showing rejection: bottoming tail after gap down (buyers stepping in) or topping tail after gap up (sellers stepping in). Enter counter-trend on break of the reversal bar.
+
+STOP: Below the extreme low of the stop run (for longs) or above the extreme high (for shorts). This is tight because if the stop hunt thesis is correct, price should not make new extremes.
+
+TARGETS: Target 1 = the breached S/R level (price returning to where it came from). Target 2 = previous day's close (full gap fill). Trail remainder bar-by-bar.
+
+EDGE: This is a mean-reversion strategy — the opposite of Emanuel's trend-following approach. It works specifically because stop cascades create predictable overreactions that institutions then fade.`,
+        source: 'Claude analysis of stop gap mechanics',
         params: {
-          preferredTimeframe: '5m',
-          aggressiveTimeframe: '1m',
-          preferNarrowRangeBar: true,
+          dailyLookback: 30,
+          swingLookback: 5,
+          waitBarsForExhaustion: 3,
+          minSRLevelsBreached: 1,
+          stopBufferPercent: 0.1,
+          trailAfterTarget1: true,
         },
         enabled: true,
+        backtestEnabled: true,
       },
       {
-        name: '20MA Trend Following',
-        description: `Emanuel's primary indicator strategy. Use the 20-period Simple Moving Average as the ultimate trend-following tool. In an uptrend: 20MA is RISING and UNDER price - every retracement or consolidation into the 20MA is a potential long entry. In a downtrend: 20MA is DECLINING and OVER price - every retracement into the 20MA is a potential short entry. IGNORE flat 20MAs - they indicate no momentum/sideways action. Works on all timeframes: use daily 20MA for bias, then 5min/2min/1min 20MA for precise entries. Prices literally trade off the 20MA in trending stocks. Also use 20MA to measure extension - if price is far from 20MA, it's overextended and may revert.`,
-        source: 'Emmanuel - The ONLY 2 indicators.txt',
-        params: {
-          maPeriod: 20,
-          maType: 'SMA',
-          entryOn: 'retracement_to_20ma',
-          avoidFlat20MA: true,
-          timeframes: ['1m', '2m', '5m', '15m', '1D'],
-          extensionWarning: true,
-        },
-        enabled: true,
-      },
-      {
-        name: '200MA Support & Resistance',
-        description: `Emanuel's 200-period SMA strategy. The 200MA acts as a FLOOR (support) when price is above it, and a CEILING (resistance) when price is below it. Key setups: (1) Gap DOWN below 200MA = bearish bias, look for shorts off the declining 20MA on intraday. (2) Gap UP above 200MA = very bullish, triggering a major breakout. (3) Price bouncing off 200MA as support = long opportunity. (4) Squeeze play: when rising 20MA crosses through flat 200MA and price oscillates between them, eventually breaks out explosively. The 200MA should be relatively FLAT to be effective. Combine with 20MA for entries.`,
-        source: 'Emmanuel - The ONLY 2 indicators.txt',
-        params: {
-          maPeriod: 200,
-          maType: 'SMA',
-          gapAbove200MA: 'very_bullish',
-          gapBelow200MA: 'bearish',
-          squeezePlay: true,
-        },
-        enabled: true,
-      },
-      {
-        name: 'Bar-by-Bar Trail Management',
-        description: `Emanuel's trailing stop strategy for managing winning trades. Once a trade reaches 2:1 R:R, activate bar-by-bar management: raise stop-loss to each completed candle's low (for longs) or high (for shorts). Start on 15-minute candles for wider room, then tighten to 5-minute or 2-minute as trade accelerates past 4-5R. This allows capturing large moves while securing profits. The key is: wider timeframe trail = more room to breathe but exit later; tighter timeframe trail = secure profits faster but risk being shaken out.`,
-        source: 'emmanuel-2.txt',
-        params: {
-          activateAtRR: 2,
-          initialTrailTimeframe: '15m',
-          tightenAtRR: 5,
-          tightenToTimeframe: '5m',
-        },
-        enabled: true,
-      },
-      {
-        name: '1-2-3 Pattern Entry',
-        description: `Emanuel's 1-2-3 setup. Pattern: (1) Igniting bar - a strong momentum candle, (2) Resting bar - a doji or small-body candle (consolidation), (3) Triggering bar - breaks above the resting bar's high (long) or below its low (short). Entry above resting bar high, stop-loss below resting bar low. Works on 1m, 5m, and 15m timeframes. Best when the resting bar is a doji or bottoming tail. Often appears after initial gap momentum.`,
-        source: 'emmanuel-1.txt',
-        params: {
-          timeframes: ['1m', '5m', '15m'],
-          restingBarType: 'doji_or_bottoming_tail',
-          entryBuffer: 0.01,
-        },
-        enabled: true,
-      },
-      {
-        name: 'AAA Value Area Setup',
+        name: 'Strat 1 - AAA Value Area Setup',
+        author: 'Fabio',
         description: `Fabio's AAA (Triple-A) setup. Trade from the value area low to value area high using order flow analysis. Wait for the first 30 minutes of the session for market participants to establish direction. Look for aggressive sellers getting absorbed at the value area low - big trades hitting a "wall" of buyers. Enter long with tight stop below the absorption zone, target the value area high. Risk:reward typically 1:4 to 1:5. Scale in as position moves in your favour. Move to risk-free as soon as possible. Best on momentum/trending days, not consolidation days.`,
         source: 'trading-live-best-scalper.txt',
         params: {
+          stopLossPercent: 0.5,
+          takeProfitPercent: 2.5,
           waitMinutes: 30,
           minRiskReward: 4,
           scaleIn: true,
           moveToBreakEvenASAP: true,
         },
         enabled: false,
+        backtestEnabled: true,
       },
       {
-        name: 'Momentum Squeeze',
+        name: 'Strat 2 - Momentum Squeeze',
+        author: 'Fabio',
         description: `Fabio's momentum/squeeze setup. Place buy stops above resistance levels where sellers are being absorbed. When sellers fail to push through and get "annihilated", the resulting short squeeze creates rapid upward expansion. Use tight stops below the absorption zone. Risk is small ($800-2000) with potential for $5,000-10,000 profit. Key: only enter when you see aggressive buyers protecting a level and sellers failing. Cancel orders if sellers break through - the setup is invalidated. Dynamic position scaling: start small, add contracts as you get confirmed.`,
         source: 'trading-live-best-scalper.txt',
         params: {
@@ -152,12 +231,16 @@ export class StrategiesService implements OnModuleInit {
           dynamicScaling: true,
         },
         enabled: false,
+        backtestEnabled: true,
       },
       {
-        name: 'Hyper-Scalping Risk Model',
+        name: 'Strat 3 - Hyper-Scalping Risk Model',
+        author: 'Fabio',
         description: `Fabio's overall risk management framework. Set a maximum daily drawdown (e.g. $10,000). Take consistent small wins with high R:R (average win $1,000/contract, average loss $600/contract). Win rate 43-49% is acceptable when average winners significantly exceed average losers. Never hold for the full move - take partials and re-enter. Risk only profits on subsequent trades after hitting daily target. Stop trading after capturing the main move - don't trade consolidation (expensive due to commissions). 70% of market time is consolidation, so trade the 30% expansion efficiently. Walk away after a great session.`,
         source: 'trading-live-best-scalper.txt',
         params: {
+          stopLossPercent: 0.6,
+          takeProfitPercent: 1.0,
           maxDailyDrawdown: 10000,
           targetWinRate: 0.45,
           avgWinToLossRatio: 1.67,
@@ -165,6 +248,7 @@ export class StrategiesService implements OnModuleInit {
           stopAfterTarget: true,
         },
         enabled: false,
+        backtestEnabled: true,
       },
     ];
 
@@ -174,6 +258,10 @@ export class StrategiesService implements OnModuleInit {
         exists.description = def.description;
         exists.source = def.source;
         exists.params = def.params;
+        exists.author = def.author;
+        if (exists.backtestEnabled === undefined || exists.backtestEnabled === null) {
+          exists.backtestEnabled = def.backtestEnabled ?? true;
+        }
         await this.repo.save(exists);
         this.logger.log(`Updated strategy: ${def.name}`);
       } else {

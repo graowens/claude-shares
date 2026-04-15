@@ -9,9 +9,13 @@ import {
   clearSelectedGaps,
   toggleGapSelect,
   runBacktestFromGaps,
+  optimiseClaude,
+  getEmanuelPicks,
   type BacktestParams,
   type GapScanResult,
   type BacktestFromGapsResult,
+  type ClaudeOptimiseResult,
+  type EmanuelPicksResult,
 } from "@/lib/api";
 import { cn, formatCurrency, formatDate, plClass, exchangeColor } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +45,9 @@ import {
   Play,
   Star,
   Info,
+  Users,
+  Brain,
+  Zap,
 } from "lucide-react";
 
 export const backtestRoute = createRoute({
@@ -138,6 +145,20 @@ function BacktestPage() {
   const [startingCapital, setStartingCapital] = useState("100");
   const [scanResults, setScanResults] = useState<GapScanResult[]>([]);
   const [backtestResult, setBacktestResult] = useState<BacktestFromGapsResult | null>(null);
+  const [claudeResult, setClaudeResult] = useState<ClaudeOptimiseResult | null>(null);
+  const [emanuelPicks, setEmanuelPicks] = useState<EmanuelPicksResult | null>(null);
+
+  // Emanuel top picks (2-week lookback)
+  const emanuelMut = useMutation({
+    mutationFn: () => getEmanuelPicks(scanDate, Number(startingCapital) || 1000),
+    onSuccess: (data) => setEmanuelPicks(data),
+  });
+
+  // Claude optimiser
+  const claudeMut = useMutation({
+    mutationFn: () => optimiseClaude(Number(startingCapital) || 10000),
+    onSuccess: (data) => setClaudeResult(data),
+  });
 
   // History
   const historyQuery = useQuery({
@@ -430,6 +451,209 @@ function BacktestPage() {
         </CardContent>
       </Card>
 
+      {/* Emanuel's Top Picks — 2 Week Lookback */}
+      {scanDate && (
+        <Card className="border-amber-500/30">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Star className="h-5 w-5 text-amber-400" />
+                Emanuel's Top 3 Picks — 2 Week Lookback
+              </CardTitle>
+              <Button
+                onClick={() => emanuelMut.mutate()}
+                disabled={!scanDate || emanuelMut.isPending}
+                className="bg-amber-600 hover:bg-amber-700"
+              >
+                {emanuelMut.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="mr-2 h-4 w-4" />
+                )}
+                {emanuelMut.isPending ? "Analysing..." : "Run Emanuel's Picks"}
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Goes back 10 trading days before {scanDate || "the selected date"}, picks the top 3 stocks Emanuel would choose each day, and shows the P/L outcome
+            </p>
+          </CardHeader>
+          {emanuelMut.isError && (
+            <CardContent>
+              <p className="text-sm text-red-400">Failed: {emanuelMut.error.message}</p>
+            </CardContent>
+          )}
+          {emanuelPicks && (
+            <CardContent className="space-y-4 pt-0">
+              {/* Totals Summary */}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                <Card className="bg-amber-500/5 border-amber-500/20">
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Total P/L</p>
+                    <p className={cn("text-2xl font-bold", plClass(emanuelPicks.totals.totalPnl))}>
+                      {formatCurrency(emanuelPicks.totals.totalPnl)}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Win Rate</p>
+                    <p className={cn("text-2xl font-bold", emanuelPicks.totals.winRate >= 50 ? "text-emerald-400" : "text-red-400")}>
+                      {emanuelPicks.totals.winRate.toFixed(1)}%
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Trades</p>
+                    <p className="text-2xl font-bold">
+                      {emanuelPicks.totals.totalWins}W / {emanuelPicks.totals.totalTrades - emanuelPicks.totals.totalWins}L
+                    </p>
+                  </CardContent>
+                </Card>
+                {emanuelPicks.totals.bestDay && (
+                  <Card>
+                    <CardContent className="pt-6">
+                      <p className="text-xs text-muted-foreground">Best Day</p>
+                      <p className="text-lg font-bold text-emerald-400">
+                        {formatCurrency(emanuelPicks.totals.bestDay.pnl)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{emanuelPicks.totals.bestDay.date}</p>
+                    </CardContent>
+                  </Card>
+                )}
+                {emanuelPicks.totals.worstDay && (
+                  <Card>
+                    <CardContent className="pt-6">
+                      <p className="text-xs text-muted-foreground">Worst Day</p>
+                      <p className="text-lg font-bold text-red-400">
+                        {formatCurrency(emanuelPicks.totals.worstDay.pnl)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{emanuelPicks.totals.worstDay.date}</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              {/* Per-day breakdown */}
+              {emanuelPicks.days.map((day) => (
+                <Card key={day.scanDate} className={cn(
+                  "border-l-4",
+                  day.dayPnl > 0 ? "border-l-emerald-500" : day.dayPnl < 0 ? "border-l-red-500" : "border-l-zinc-600"
+                )}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <CardTitle className="text-sm font-mono">{day.scanDate}</CardTitle>
+                        <span className="text-xs text-muted-foreground">trades {day.tradingDay}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {day.dayTrades > 0 && (
+                          <Badge variant={day.dayWins === day.dayTrades ? "success" : day.dayWins > 0 ? "warning" : "danger"}>
+                            {day.dayWins}/{day.dayTrades} wins
+                          </Badge>
+                        )}
+                        <span className={cn("font-mono font-bold", plClass(day.dayPnl))}>
+                          {formatCurrency(day.dayPnl)}
+                        </span>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-12">#</TableHead>
+                          <TableHead>Symbol</TableHead>
+                          <TableHead>Score</TableHead>
+                          <TableHead>Gap</TableHead>
+                          <TableHead>Context</TableHead>
+                          <TableHead>Side</TableHead>
+                          <TableHead>Entry</TableHead>
+                          <TableHead>Exit</TableHead>
+                          <TableHead>P/L</TableHead>
+                          <TableHead>P/L %</TableHead>
+                          <TableHead>Exit Reason</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {day.picks.map((pick, idx) => (
+                          <TableRow key={pick.symbol} className={cn(
+                            pick.trade
+                              ? pick.trade.pnl > 0
+                                ? "bg-emerald-500/5"
+                                : pick.trade.pnl < 0
+                                  ? "bg-red-500/5"
+                                  : ""
+                              : "opacity-50"
+                          )}>
+                            <TableCell className="font-bold text-muted-foreground">{idx + 1}</TableCell>
+                            <TableCell className="font-bold">
+                              <a
+                                href={`https://www.tradingview.com/chart/?symbol=${pick.symbol}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-amber-400 underline decoration-dotted underline-offset-2 hover:text-amber-300"
+                              >
+                                {pick.symbol}
+                              </a>
+                            </TableCell>
+                            <TableCell>
+                              {pick.score >= 50 ? (
+                                <Badge className="border-transparent bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30 font-bold">
+                                  <Star className="mr-1 h-3 w-3 fill-emerald-400" />{pick.score}
+                                </Badge>
+                              ) : pick.score >= 30 ? (
+                                <Badge className="border-transparent bg-yellow-500/20 text-yellow-300 ring-1 ring-yellow-500/30 font-bold">
+                                  {pick.score}
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="font-bold opacity-60">{pick.score}</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={pick.gapPercent >= 0 ? "success" : "danger"} className="font-semibold">
+                                {pick.gapPercent >= 0 ? "+" : ""}{pick.gapPercent.toFixed(1)}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-xs text-muted-foreground">
+                                {pick.dailyContext.replace(/_/g, " ")}
+                              </span>
+                            </TableCell>
+                            {pick.trade ? (
+                              <>
+                                <TableCell>
+                                  <Badge variant={pick.trade.side === "buy" ? "success" : "danger"}>
+                                    {pick.trade.side}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="font-mono">{formatCurrency(pick.trade.entryPrice)}</TableCell>
+                                <TableCell className="font-mono">{formatCurrency(pick.trade.exitPrice)}</TableCell>
+                                <TableCell className={cn("font-mono font-semibold", plClass(pick.trade.pnl))}>
+                                  {formatCurrency(pick.trade.pnl)}
+                                </TableCell>
+                                <TableCell className={cn("font-mono", plClass(pick.trade.pnlPercent))}>
+                                  {pick.trade.pnlPercent >= 0 ? "+" : ""}{pick.trade.pnlPercent.toFixed(2)}%
+                                </TableCell>
+                                <TableCell>{exitReasonBadge(pick.trade.exitReason)}</TableCell>
+                              </>
+                            ) : (
+                              <TableCell colSpan={6} className="text-xs text-muted-foreground italic">
+                                {pick.skippedReason || "No trade"}
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              ))}
+            </CardContent>
+          )}
+        </Card>
+      )}
+
       {/* Step connector */}
       {scanResults.length > 0 && (
         <div className="flex justify-center">
@@ -719,6 +943,116 @@ function BacktestPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Per-Author Strategy Comparison */}
+          {backtestResult.params.perAuthorResults && Object.keys(backtestResult.params.perAuthorResults).length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Users className="h-5 w-5 text-violet-400" />
+                  Strategy Author Comparison
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Author</TableHead>
+                      <TableHead>Entry Method</TableHead>
+                      <TableHead>Traded</TableHead>
+                      <TableHead>Skipped</TableHead>
+                      <TableHead>P/L</TableHead>
+                      <TableHead>Win Rate</TableHead>
+                      <TableHead>W / L</TableHead>
+                      <TableHead>vs. You</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Object.entries(backtestResult.params.perAuthorResults)
+                      .sort(([, a], [, b]) => b.totalPnl - a.totalPnl)
+                      .map(([author, result], idx) => {
+                        const delta = result.totalPnl - backtestResult.totalPnl;
+                        const isBest = idx === 0;
+                        return (
+                          <TableRow
+                            key={author}
+                            className={cn(isBest && "bg-emerald-500/5 border-l-2 border-l-emerald-400")}
+                          >
+                            <TableCell className="font-bold">
+                              <div className="flex items-center gap-2">
+                                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-500/20 text-xs font-bold text-violet-400">
+                                  {author[0]}
+                                </div>
+                                {author}
+                                {isBest && <Badge variant="success" className="text-xs">Best</Badge>}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-xs text-muted-foreground">
+                                {result.entryMethod || `SL ${result.stopLoss}% / TP ${result.takeProfit}%`}
+                              </span>
+                            </TableCell>
+                            <TableCell>{result.totalTrades}</TableCell>
+                            <TableCell>
+                              {(result.skippedStocks ?? 0) > 0 ? (
+                                <div className="group relative">
+                                  <span className="text-yellow-400 cursor-help">{result.skippedStocks}</span>
+                                  {result.skippedReasons && result.skippedReasons.length > 0 && (
+                                    <div className="invisible group-hover:visible absolute left-0 bottom-full mb-2 z-50 w-72 rounded-md border bg-popover p-3 text-xs text-popover-foreground shadow-md">
+                                      <ul className="space-y-1">
+                                        {result.skippedReasons.map((r, i) => (
+                                          <li key={i} className="flex items-start gap-1.5">
+                                            <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-yellow-400" />
+                                            {r}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">0</span>
+                              )}
+                            </TableCell>
+                            <TableCell className={cn("font-mono font-semibold", plClass(result.totalPnl))}>
+                              {formatCurrency(result.totalPnl)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={result.winRate >= 50 ? "success" : "danger"}>
+                                {result.winRate.toFixed(1)}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {result.wins}W / {result.losses}L
+                            </TableCell>
+                            <TableCell className={cn("font-mono", plClass(delta))}>
+                              {delta >= 0 ? "+" : ""}{formatCurrency(delta)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                  </TableBody>
+                </Table>
+
+                {/* Explanation cards */}
+                <div className="space-y-2 px-6 pb-6">
+                  {Object.entries(backtestResult.params.perAuthorResults)
+                    .sort(([, a], [, b]) => b.totalPnl - a.totalPnl)
+                    .map(([author, result]) => (
+                    <div
+                      key={author}
+                      className="rounded-md border border-l-4 border-l-violet-500/50 p-3"
+                    >
+                      <p className="text-sm">
+                        <span className="font-semibold text-foreground">{author}: </span>
+                        <span className="text-muted-foreground">{result.explanation}</span>
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
 
@@ -781,6 +1115,201 @@ function BacktestPage() {
                 ))}
               </TableBody>
             </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Claude Strategy Optimiser */}
+      <Card className="border-blue-500/30">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Brain className="h-5 w-5 text-blue-400" />
+            Claude's Stop Gap Reversal — Optimiser
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Scans ALL cached gap dates, fetches daily bars for S/R detection, and sweeps parameter
+            combinations to find the optimal settings for Claude's stop gap reversal strategy.
+          </p>
+          <div className="flex items-center gap-4">
+            <Button
+              onClick={() => claudeMut.mutate()}
+              disabled={claudeMut.isPending}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {claudeMut.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Zap className="mr-2 h-4 w-4" />
+              )}
+              {claudeMut.isPending ? "Optimising (this may take a while)..." : "Run Optimiser"}
+            </Button>
+            {claudeMut.isError && (
+              <p className="text-sm text-red-400">Failed: {claudeMut.error.message}</p>
+            )}
+          </div>
+
+          {claudeResult && (
+            <div className="space-y-4 pt-2">
+              {/* Summary */}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Card className="bg-blue-500/5 border-blue-500/20">
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Best P/L (all dates)</p>
+                    <p className={cn("text-2xl font-bold", plClass(claudeResult.bestPnl))}>
+                      {formatCurrency(claudeResult.bestPnl)}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Win Rate</p>
+                    <p className={cn("text-2xl font-bold", claudeResult.bestWinRate >= 50 ? "text-emerald-400" : "text-red-400")}>
+                      {claudeResult.bestWinRate.toFixed(1)}%
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Total Trades</p>
+                    <p className="text-2xl font-bold">{claudeResult.bestTrades}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Dates / Stocks Analysed</p>
+                    <p className="text-2xl font-bold">
+                      {claudeResult.datesScanned}
+                      <span className="text-sm font-normal text-muted-foreground"> / {claudeResult.totalStocksAnalysed}</span>
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Best Params */}
+              <Card className="border-blue-500/20 bg-blue-500/5">
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Target className="h-5 w-5 text-blue-400" />
+                    <p className="font-semibold text-blue-300">Optimal Parameters</p>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Swing Lookback</p>
+                      <p className="text-xl font-bold">{claudeResult.bestParams.swingLookback} bars</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Wait Bars (cascade)</p>
+                      <p className="text-xl font-bold">{claudeResult.bestParams.waitBars} bars</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Stop Buffer</p>
+                      <p className="text-xl font-bold">{(claudeResult.bestParams.stopBuffer * 100).toFixed(2)}%</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Rejection Threshold</p>
+                      <p className="text-xl font-bold">{(claudeResult.bestParams.rejectionThreshold * 100).toFixed(0)}%</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Per-Date Breakdown */}
+              {claudeResult.perDateBreakdown.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">Per-Date Performance (Best Params)</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Scan Date</TableHead>
+                          <TableHead>Trading Day</TableHead>
+                          <TableHead>Stocks</TableHead>
+                          <TableHead>Trades</TableHead>
+                          <TableHead>P/L</TableHead>
+                          <TableHead>Win Rate</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {claudeResult.perDateBreakdown.map((d) => (
+                          <TableRow key={d.scanDate}>
+                            <TableCell className="font-mono">{d.scanDate}</TableCell>
+                            <TableCell className="font-mono text-muted-foreground">{d.tradingDay}</TableCell>
+                            <TableCell>{d.stocks}</TableCell>
+                            <TableCell>{d.trades}</TableCell>
+                            <TableCell className={cn("font-mono font-semibold", plClass(d.pnl))}>
+                              {formatCurrency(d.pnl)}
+                            </TableCell>
+                            <TableCell>
+                              {d.trades > 0 ? (
+                                <Badge variant={d.winRate >= 50 ? "success" : "danger"}>
+                                  {d.winRate.toFixed(1)}%
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Top Parameter Combos */}
+              {claudeResult.allParamResults.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">Top 20 Parameter Combinations</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>#</TableHead>
+                          <TableHead>Swing LB</TableHead>
+                          <TableHead>Wait Bars</TableHead>
+                          <TableHead>Stop Buffer</TableHead>
+                          <TableHead>Rejection</TableHead>
+                          <TableHead>Trades</TableHead>
+                          <TableHead>W / L</TableHead>
+                          <TableHead>Win Rate</TableHead>
+                          <TableHead>Total P/L</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {claudeResult.allParamResults.map((r, i) => (
+                          <TableRow
+                            key={i}
+                            className={cn(i === 0 && "bg-blue-500/5 border-l-2 border-l-blue-400")}
+                          >
+                            <TableCell className="font-bold text-muted-foreground">{i + 1}</TableCell>
+                            <TableCell>{r.params.swingLookback}</TableCell>
+                            <TableCell>{r.params.waitBars}</TableCell>
+                            <TableCell>{(r.params.stopBuffer * 100).toFixed(2)}%</TableCell>
+                            <TableCell>{(r.params.rejectionThreshold * 100).toFixed(0)}%</TableCell>
+                            <TableCell>{r.totalTrades}</TableCell>
+                            <TableCell className="text-muted-foreground">{r.wins}W / {r.losses}L</TableCell>
+                            <TableCell>
+                              <Badge variant={r.winRate >= 50 ? "success" : "danger"}>
+                                {r.winRate.toFixed(1)}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell className={cn("font-mono font-semibold", plClass(r.totalPnl))}>
+                              {formatCurrency(r.totalPnl)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
