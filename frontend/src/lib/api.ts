@@ -394,10 +394,13 @@ export const getExchanges = () => request<ExchangeInfo>("/exchanges");
 
 // Claude Strategy Optimiser
 export interface ClaudeParams {
-  swingLookback: number;
-  waitBars: number;
-  stopBuffer: number;
-  rejectionThreshold: number;
+  maxTradesPerDay: number;
+  entryWindowBars: number;
+  trailActivateRR: number;
+  partialProfitRR: number;
+  partialProfitPercent: number;
+  maxDailyLossPercent: number;
+  eodTightenBar: number;
 }
 
 export interface ClaudeOptimiseResult {
@@ -454,6 +457,7 @@ export interface EmanuelPick {
   ma200: number | null;
   trade: EmanuelPickTrade | null;
   skippedReason: string | null;
+  isEmanuelPick: boolean;
 }
 
 export interface EmanuelPicksDay {
@@ -478,8 +482,77 @@ export interface EmanuelPicksResult {
   };
 }
 
-export const getEmanuelPicks = (endDate: string, startingCapital?: number) =>
+export const getEmanuelPicks = (endDate: string, startingCapital?: number, lookbackDays?: number, longOnly?: boolean) =>
   request<EmanuelPicksResult>("/backtest/emanuel-picks", {
     method: "POST",
-    body: JSON.stringify({ endDate, startingCapital }),
+    body: JSON.stringify({ endDate, startingCapital, lookbackDays, longOnly }),
+  });
+
+// Claude Top Picks
+export interface ClaudePickTrade {
+  side: string;
+  entryPrice: number;
+  exitPrice: number;
+  shares: number;
+  grossPnl: number;
+  fees: number;
+  netPnl: number;
+  pnlPercent: number;
+  exitReason: string;
+}
+
+export interface ClaudePick {
+  symbol: string;
+  gapPercent: number;
+  score: number;
+  scoreReasons: string[];
+  dailyContext: string;
+  trendDirection: string;
+  trade: ClaudePickTrade | null;
+  skippedReason: string | null;
+}
+
+export interface ClaudePicksDay {
+  scanDate: string;
+  tradingDay: string;
+  startBalance: number;
+  picks: ClaudePick[];
+  dayGrossPnl: number;
+  dayFees: number;
+  dayNetPnl: number;
+  endBalance: number;
+  dayTrades: number;
+  dayWins: number;
+}
+
+export interface ClaudePicksResult {
+  days: ClaudePicksDay[];
+  totals: {
+    startingCapital: number;
+    finalBalance: number;
+    totalGrossPnl: number;
+    totalFees: number;
+    totalNetPnl: number;
+    totalReturn: number;
+    totalTrades: number;
+    totalWins: number;
+    winRate: number;
+    daysAnalysed: number;
+    avgDailyPnl: number;
+    bestDay: { date: string; pnl: number } | null;
+    worstDay: { date: string; pnl: number } | null;
+  };
+}
+
+export const getClaudePicks = (endDate: string, startingCapital?: number, lookbackDays?: number, longOnly?: boolean) =>
+  request<ClaudePicksResult>("/backtest/claude-picks", {
+    method: "POST",
+    body: JSON.stringify({ endDate, startingCapital, lookbackDays, longOnly }),
+  });
+
+// ProRealAlgos uses the same result shape as Claude (fees + running balance)
+export const getProRealAlgosPicks = (endDate: string, startingCapital?: number, lookbackDays?: number, symbols?: string[], longOnly?: boolean) =>
+  request<ClaudePicksResult>("/backtest/prorealalgos-picks", {
+    method: "POST",
+    body: JSON.stringify({ endDate, startingCapital, lookbackDays, symbols, longOnly }),
   });

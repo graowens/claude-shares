@@ -40,10 +40,33 @@ export class BacktestController {
   }
 
   @Post('emanuel-picks')
-  emanuelPicks(@Body() body: { endDate: string; startingCapital?: number }) {
+  emanuelPicks(@Body() body: { endDate: string; startingCapital?: number; lookbackDays?: number; longOnly?: boolean }) {
     return this.backtestService.emanuelTopPicks(
       body.endDate,
       body.startingCapital || 1000,
+      body.lookbackDays || 10,
+      body.longOnly ?? false,
+    );
+  }
+
+  @Post('claude-picks')
+  claudePicks(@Body() body: { endDate: string; startingCapital?: number; lookbackDays?: number; longOnly?: boolean }) {
+    return this.backtestService.claudeTopPicks(
+      body.endDate,
+      body.startingCapital || 1000,
+      body.lookbackDays || 10,
+      body.longOnly ?? false,
+    );
+  }
+
+  @Post('prorealalgos-picks')
+  proRealAlgosPicks(@Body() body: { endDate: string; startingCapital?: number; lookbackDays?: number; symbols?: string[]; longOnly?: boolean }) {
+    return this.backtestService.proRealAlgosTopPicks(
+      body.endDate,
+      body.startingCapital || 1000,
+      body.lookbackDays || 10,
+      body.symbols,
+      body.longOnly ?? false,
     );
   }
 

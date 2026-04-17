@@ -6,7 +6,7 @@ import { AlpacaService } from '../alpaca/alpaca.service';
 import { GapScannerService } from '../gap-scanner/gap-scanner.service';
 import { StrategiesService } from '../strategies/strategies.service';
 import { RunBacktestDto } from './dto/run-backtest.dto';
-import { simulateEmanuel, simulateFabio, simulateClaude, simulateGeneric, type ClaudeParams, CLAUDE_DEFAULT_PARAMS } from './strategy-engines';
+import { simulateEmanuel, simulateFabio, simulateClaude, simulateProRealAlgos, simulateGeneric, type ClaudeParams, CLAUDE_DEFAULT_PARAMS, type EmanuelParams, EMANUEL_DEFAULT_PARAMS } from './strategy-engines';
 
 interface SimulatedTrade {
   date: string;
@@ -67,6 +67,31 @@ export class BacktestService {
   /**
    * Fetch up to 30 trading days of daily bars ending at `endDate`, with caching.
    */
+  /**
+   * Load Emanuel's saved strategy params (ORB timeframe, flexibility clause
+   * thresholds, etc.) so the backtest engine honours the user's configured values.
+   */
+  private async loadEmanuelParams(): Promise<Partial<EmanuelParams>> {
+    const all = await this.strategies.findAll();
+    const emanuel = all.find(
+      (s) => s.author === 'Emanuel' && s.name === 'Emanuel - Gap Scalp System',
+    );
+    const raw = emanuel?.params ?? {};
+    const out: Partial<EmanuelParams> = {};
+    if (raw.orbTimeframeMinutes === 1 || raw.orbTimeframeMinutes === 2 || raw.orbTimeframeMinutes === 5) {
+      out.orbTimeframeMinutes = raw.orbTimeframeMinutes;
+    }
+    if (typeof raw.orbMaxRangePercent === 'number') out.orbMaxRangePercent = raw.orbMaxRangePercent;
+    if (typeof raw.minScore === 'number') out.minScore = raw.minScore;
+    if (typeof raw.minRR === 'number') out.minRR = raw.minRR;
+    if (typeof raw.exceptionalGapScore === 'number') out.exceptionalGapScore = raw.exceptionalGapScore;
+    if (typeof raw.flexibilityMinRR === 'number') out.flexibilityMinRR = raw.flexibilityMinRR;
+    if (typeof raw.riskPercent === 'number') out.riskPercent = raw.riskPercent;
+    if (typeof raw.trailActivateRR === 'number') out.trailActivateRR = raw.trailActivateRR;
+    if (typeof raw.trailTightenRR === 'number') out.trailTightenRR = raw.trailTightenRR;
+    return out;
+  }
+
   private async getDailyBars(symbol: string, endDate: string): Promise<BarData[]> {
     const cacheKey = `${symbol}:${endDate}`;
     const cached = this.dailyBarsCache.get(cacheKey);
@@ -269,9 +294,9 @@ export class BacktestService {
       `Running gap-scan backtest: scanDate=${scanDate}, tradingDay=${tradingDay}, ${selected.length} stocks, capital=${capital}`,
     );
 
-    // Market open 09:30 ET, first hour ends 10:30 ET
+    // Full trading day — Emanuel holds positions all day with bar-by-bar trail
     const startTime = `${tradingDay}T09:30:00-04:00`;
-    const endTime = `${tradingDay}T10:30:00-04:00`;
+    const endTime = `${tradingDay}T16:00:00-04:00`;
 
     // Fetch bars once for all selected stocks
     const setups: StockSetup[] = [];
@@ -330,11 +355,16 @@ export class BacktestService {
     const authorDefaults = await this.strategies.getAuthorDefaults();
     const perAuthorResults: Record<string, any> = {};
 
+    // Load Emanuel's strategy params from the DB so backtests honour the saved ORB
+    // timeframe and flexibility-clause thresholds.
+    const emanuelParams = await this.loadEmanuelParams();
+
     // Map known authors to their engines
     const engines: Record<string, (s: StockSetup[], c: number) => any> = {
-      'Emanuel': simulateEmanuel,
+      'Emanuel': (s, c) => simulateEmanuel(s, c, emanuelParams),
       'Fabio': simulateFabio,
       'Claude': simulateClaude,
+      'ProRealAlgos': simulateProRealAlgos,
     };
 
     for (const [author, defaults] of Object.entries(authorDefaults)) {
@@ -624,7 +654,7 @@ export class BacktestService {
 
       const tradingDay = this.getNextTradingDay(scanDate);
       const startTime = `${tradingDay}T09:30:00-04:00`;
-      const endTime = `${tradingDay}T10:30:00-04:00`;
+      const endTime = `${tradingDay}T16:00:00-04:00`;
 
       const setups: StockSetup[] = [];
       for (const gap of allGaps) {
@@ -674,11 +704,11 @@ export class BacktestService {
       `Claude optimiser: ${allSetupsByDate.length} dates with usable setups, sweeping params...`,
     );
 
-    // ── Parameter sweep ──
-    const swingLookbacks = [2, 3, 4, 5];
-    const waitBarOptions = [2, 3, 4, 5];
-    const stopBuffers = [0.0005, 0.001, 0.002, 0.003];
-    const rejectionThresholds = [0.3, 0.4, 0.5];
+    // ── Parameter sweep — Claude's tunable params ──
+    const maxTradesOptions = [1, 2, 3];
+    const trailActivateOptions = [1.5, 2.0, 2.5];
+    const partialProfitRROptions = [1.5, 2.0, 3.0];
+    const entryWindowOptions = [12, 24, 36]; // 1hr, 2hr, 3hr
 
     let bestPnl = -Infinity;
     let bestParams = CLAUDE_DEFAULT_PARAMS;
@@ -693,11 +723,17 @@ export class BacktestService {
       losses: number;
     }> = [];
 
-    for (const swingLookback of swingLookbacks) {
-      for (const waitBars of waitBarOptions) {
-        for (const stopBuffer of stopBuffers) {
-          for (const rejectionThreshold of rejectionThresholds) {
-            const params: ClaudeParams = { swingLookback, waitBars, stopBuffer, rejectionThreshold };
+    for (const maxTradesPerDay of maxTradesOptions) {
+      for (const trailActivateRR of trailActivateOptions) {
+        for (const partialProfitRR of partialProfitRROptions) {
+          for (const entryWindowBars of entryWindowOptions) {
+            const params: ClaudeParams = {
+              ...CLAUDE_DEFAULT_PARAMS,
+              maxTradesPerDay,
+              trailActivateRR,
+              partialProfitRR,
+              entryWindowBars,
+            };
 
             let totalPnl = 0;
             let totalTradesCount = 0;
@@ -881,7 +917,7 @@ export class BacktestService {
         // Step 2: For each gap result, fetch 5-min intraday bars + daily bars
         const tradingDay = this.getNextTradingDay(scanDate);
         const startTime = `${tradingDay}T09:30:00-04:00`;
-        const endTime = `${tradingDay}T10:30:00-04:00`;
+        const endTime = `${tradingDay}T16:00:00-04:00`;
 
         p.message = `Fetching bars for ${gapResults.length} stocks on ${scanDate}...`;
 
@@ -942,6 +978,8 @@ export class BacktestService {
   async emanuelTopPicks(
     endDate: string,
     capital = 1000,
+    lookbackDays = 10,
+    longOnly = false,
   ): Promise<{
     days: Array<{
       scanDate: string;
@@ -980,19 +1018,19 @@ export class BacktestService {
       worstDay: { date: string; pnl: number } | null;
     };
   }> {
-    // Get 10 trading days ending before endDate
     const end = new Date(endDate + 'T00:00:00');
     const start = new Date(end);
-    start.setDate(start.getDate() - 16); // 16 calendar days ≈ 10-11 trading days
+    start.setDate(start.getDate() - Math.ceil(lookbackDays * 1.6)); // calendar days buffer
     const tradingDays = this.getTradingDays(
       start.toISOString().split('T')[0],
-      // Include the selected date itself
       endDate,
-    ).slice(-10); // Take up to 10 trading days
+    ).slice(-lookbackDays);
 
     this.logger.log(
-      `Emanuel top picks: ${tradingDays.length} trading days before ${endDate}`,
+      `Emanuel top picks: ${tradingDays.length} trading days up to ${endDate}`,
     );
+
+    const emanuelParams = await this.loadEmanuelParams();
 
     const days: Array<any> = [];
     let totalPnl = 0;
@@ -1011,19 +1049,24 @@ export class BacktestService {
       }
       if (gapResults.length === 0) continue;
 
+      // Filter long-only if set (only gap-ups = buy setups)
+      const filtered = longOnly
+        ? gapResults.filter(g => Number(g.gapPercent) > 0)
+        : gapResults;
+
       // Sort by Emanuel score descending, take top 3
-      const top3 = [...gapResults]
+      const top3 = [...filtered]
         .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
         .slice(0, 3);
 
       const tradingDay = this.getNextTradingDay(scanDate);
       const startTime = `${tradingDay}T09:30:00-04:00`;
-      const endTime = `${tradingDay}T10:30:00-04:00`;
+      const endTime = `${tradingDay}T16:00:00-04:00`;
 
+      // Build setups for all top 3 picks
       const picks: Array<any> = [];
-      let dayPnl = 0;
-      let dayTrades = 0;
-      let dayWins = 0;
+      const daySetups: StockSetup[] = [];
+      const pickMap = new Map<string, any>();
 
       for (const gap of top3) {
         const pick: any = {
@@ -1037,6 +1080,7 @@ export class BacktestService {
           ma200: gap.ma200 != null ? Number(gap.ma200) : null,
           trade: null,
           skippedReason: null,
+          isEmanuelPick: false, // Will mark which one the engine actually trades
         };
 
         try {
@@ -1047,7 +1091,7 @@ export class BacktestService {
             endTime,
           );
 
-          if (bars.length < 4) {
+          if (bars.length < 6) {
             pick.skippedReason = 'Not enough intraday bars';
             picks.push(pick);
             continue;
@@ -1072,11 +1116,28 @@ export class BacktestService {
             prevClose: gap.prevClose != null ? Number(gap.prevClose) : undefined,
           };
 
-          // Run Emanuel's engine on this single stock
-          const sim = simulateEmanuel([setup], capital);
+          daySetups.push(setup);
+          pickMap.set(gap.symbol, pick);
+        } catch (err) {
+          pick.skippedReason = `Bar fetch error: ${err.message}`;
+        }
 
-          if (sim.trades.length > 0) {
-            const t = sim.trades[0];
+        picks.push(pick);
+      }
+
+      // Run Emanuel's engine on ALL setups — it will pick the best one (one-and-done)
+      let dayPnl = 0;
+      let dayTrades = 0;
+      let dayWins = 0;
+
+      if (daySetups.length > 0) {
+        const sim = simulateEmanuel(daySetups, capital, emanuelParams);
+
+        // Map the trade back to the pick
+        if (sim.trades.length > 0) {
+          const t = sim.trades[0];
+          const pick = pickMap.get(t.symbol!);
+          if (pick) {
             pick.trade = {
               side: t.side,
               entryPrice: t.entryPrice,
@@ -1086,19 +1147,21 @@ export class BacktestService {
               exitReason: t.exitReason,
               shares: t.shares || 0,
             };
-            dayPnl += t.pnl;
-            dayTrades++;
-            if (t.pnl > 0) dayWins++;
-          } else if (sim.skippedReasons.length > 0) {
-            pick.skippedReason = sim.skippedReasons[0];
-          } else {
-            pick.skippedReason = 'No entry signal found';
+            pick.isEmanuelPick = true;
+            dayPnl = t.pnl;
+            dayTrades = 1;
+            if (t.pnl > 0) dayWins = 1;
           }
-        } catch (err) {
-          pick.skippedReason = `Bar fetch error: ${err.message}`;
         }
 
-        picks.push(pick);
+        // Mark skipped reasons for non-traded picks
+        for (const reason of sim.skippedReasons) {
+          const sym = reason.split(':')[0];
+          const pick = pickMap.get(sym);
+          if (pick && !pick.trade && !pick.skippedReason) {
+            pick.skippedReason = reason.split(': ').slice(1).join(': ');
+          }
+        }
       }
 
       dayPnl = Math.round(dayPnl * 100) / 100;
@@ -1116,12 +1179,14 @@ export class BacktestService {
       });
     }
 
-    // Find best and worst days
+    // Find best and worst days. With only one trading day, best==worst so both are
+    // redundant with total P/L — omit them.
     const daysWithTrades = days.filter((d) => d.dayTrades > 0);
-    const bestDay = daysWithTrades.length > 0
+    const showBestWorst = daysWithTrades.length >= 2;
+    const bestDay = showBestWorst
       ? daysWithTrades.reduce((best, d) => d.dayPnl > best.dayPnl ? d : best)
       : null;
-    const worstDay = daysWithTrades.length > 0
+    const worstDay = showBestWorst
       ? daysWithTrades.reduce((worst, d) => d.dayPnl < worst.dayPnl ? d : worst)
       : null;
 
@@ -1135,6 +1200,429 @@ export class BacktestService {
         daysAnalysed: days.length,
         bestDay: bestDay ? { date: bestDay.scanDate, pnl: bestDay.dayPnl } : null,
         worstDay: worstDay ? { date: worstDay.scanDate, pnl: worstDay.dayPnl } : null,
+      },
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  CLAUDE'S TOP PICKS — 2-week lookback with running balance + fees
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Calculate Alpaca regulatory fees for a trade.
+   * Alpaca is commission-free but passes through SEC + FINRA fees.
+   * - SEC fee: $0.0000278 per dollar on SELL transactions
+   * - FINRA TAF: $0.000166 per share sold (capped at $8.30)
+   */
+  private calculateFees(
+    side: string,
+    shares: number,
+    entryPrice: number,
+    exitPrice: number,
+  ): number {
+    let fees = 0;
+    // On the sell side (or closing a buy, or opening a short)
+    const sellValue = side === 'buy' ? exitPrice * shares : entryPrice * shares;
+    // SEC fee on sells
+    fees += sellValue * 0.0000278;
+    // FINRA TAF on sells
+    fees += Math.min(shares * 0.000166, 8.30);
+    // Round up to nearest cent
+    return Math.ceil(fees * 100) / 100;
+  }
+
+  async claudeTopPicks(
+    endDate: string,
+    capital = 1000,
+    lookbackDays = 10,
+    longOnly = false,
+  ): Promise<{
+    days: Array<{
+      scanDate: string;
+      tradingDay: string;
+      startBalance: number;
+      picks: Array<{
+        symbol: string;
+        gapPercent: number;
+        score: number;
+        scoreReasons: string[];
+        dailyContext: string;
+        trendDirection: string;
+        trade: {
+          side: string;
+          entryPrice: number;
+          exitPrice: number;
+          shares: number;
+          grossPnl: number;
+          fees: number;
+          netPnl: number;
+          pnlPercent: number;
+          exitReason: string;
+        } | null;
+        skippedReason: string | null;
+      }>;
+      dayGrossPnl: number;
+      dayFees: number;
+      dayNetPnl: number;
+      endBalance: number;
+      dayTrades: number;
+      dayWins: number;
+    }>;
+    totals: {
+      startingCapital: number;
+      finalBalance: number;
+      totalGrossPnl: number;
+      totalFees: number;
+      totalNetPnl: number;
+      totalReturn: number;
+      totalTrades: number;
+      totalWins: number;
+      winRate: number;
+      daysAnalysed: number;
+      avgDailyPnl: number;
+      bestDay: { date: string; pnl: number } | null;
+      worstDay: { date: string; pnl: number } | null;
+    };
+  }> {
+    const end = new Date(endDate + 'T00:00:00');
+    const start = new Date(end);
+    start.setDate(start.getDate() - Math.ceil(lookbackDays * 1.6));
+    const tradingDays = this.getTradingDays(
+      start.toISOString().split('T')[0],
+      endDate,
+    ).slice(-lookbackDays);
+
+    this.logger.log(`Claude top picks: ${tradingDays.length} trading days up to ${endDate}`);
+
+    const days: Array<any> = [];
+    let runningBalance = capital;
+    let totalGrossPnl = 0;
+    let totalFees = 0;
+    let totalTrades = 0;
+    let totalWins = 0;
+
+    for (const scanDate of tradingDays) {
+      const dayStartBalance = runningBalance;
+
+      let gapResults = await this.gapScanner.getAllResults(scanDate);
+      if (gapResults.length === 0) {
+        try {
+          gapResults = await this.gapScanner.scanHistoricalGaps(scanDate);
+        } catch { continue; }
+      }
+      if (gapResults.length === 0) continue;
+
+      // Filter long-only if set
+      const filtered = longOnly
+        ? gapResults.filter(g => Number(g.gapPercent) > 0)
+        : gapResults;
+
+      // Sort by score, take top 5 (Claude may trade up to 3, needs candidates)
+      const top5 = [...filtered]
+        .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+        .slice(0, 5);
+
+      const tradingDay = this.getNextTradingDay(scanDate);
+      const startTime = `${tradingDay}T09:30:00-04:00`;
+      const endTime = `${tradingDay}T16:00:00-04:00`;
+
+      // Build setups for all candidates
+      const daySetups: StockSetup[] = [];
+      const pickData: Array<any> = [];
+
+      for (const gap of top5) {
+        const info: any = {
+          symbol: gap.symbol,
+          gapPercent: Number(gap.gapPercent),
+          score: gap.score ?? 0,
+          scoreReasons: gap.scoreReasons || [],
+          dailyContext: gap.dailyContext || 'other',
+          trendDirection: gap.trendDirection || 'sideways',
+          trade: null,
+          skippedReason: null,
+        };
+
+        try {
+          const bars = await this.alpaca.getHistoricalBars(gap.symbol, '5Min', startTime, endTime);
+          if (bars.length < 6) {
+            info.skippedReason = 'Not enough intraday bars';
+            pickData.push(info);
+            continue;
+          }
+
+          const dailyBars = await this.getDailyBars(gap.symbol, scanDate);
+          const gapPercent = Number(gap.gapPercent);
+          const isGapUp = gapPercent > 0;
+
+          daySetups.push({
+            symbol: gap.symbol,
+            bars,
+            gapPercent,
+            isGapUp,
+            side: isGapUp ? 'buy' : 'sell',
+            ma20: gap.ma20 != null ? Number(gap.ma20) : undefined,
+            ma200: gap.ma200 != null ? Number(gap.ma200) : undefined,
+            trendDirection: gap.trendDirection || undefined,
+            dailyContext: gap.dailyContext || undefined,
+            score: gap.score ?? undefined,
+            dailyBars,
+            prevClose: gap.prevClose != null ? Number(gap.prevClose) : undefined,
+          });
+        } catch (err) {
+          info.skippedReason = `Bar fetch error`;
+        }
+
+        pickData.push(info);
+      }
+
+      // Run Claude's engine on all setups (it picks up to 3)
+      let dayGrossPnl = 0;
+      let dayFees = 0;
+      let dayTrades = 0;
+      let dayWins = 0;
+
+      if (daySetups.length > 0) {
+        const sim = simulateClaude(daySetups, runningBalance);
+
+        for (const t of sim.trades) {
+          const info = pickData.find(p => p.symbol === t.symbol);
+          const fees = this.calculateFees(t.side, t.shares || 0, t.entryPrice, t.exitPrice);
+          const netPnl = Math.round((t.pnl - fees) * 100) / 100;
+
+          if (info) {
+            info.trade = {
+              side: t.side,
+              entryPrice: t.entryPrice,
+              exitPrice: t.exitPrice,
+              shares: t.shares || 0,
+              grossPnl: Math.round(t.pnl * 100) / 100,
+              fees: fees,
+              netPnl: netPnl,
+              pnlPercent: Math.round(t.pnlPercent * 100) / 100,
+              exitReason: t.exitReason,
+            };
+          }
+
+          dayGrossPnl += t.pnl;
+          dayFees += fees;
+          dayTrades++;
+          if (t.pnl > 0) dayWins++;
+        }
+
+        // Mark skipped reasons
+        for (const reason of sim.skippedReasons) {
+          const sym = reason.split(':')[0];
+          const info = pickData.find(p => p.symbol === sym && !p.trade && !p.skippedReason);
+          if (info) info.skippedReason = reason.split(': ').slice(1).join(': ');
+        }
+      }
+
+      dayGrossPnl = Math.round(dayGrossPnl * 100) / 100;
+      dayFees = Math.round(dayFees * 100) / 100;
+      const dayNetPnl = Math.round((dayGrossPnl - dayFees) * 100) / 100;
+      runningBalance = Math.round((runningBalance + dayNetPnl) * 100) / 100;
+
+      totalGrossPnl += dayGrossPnl;
+      totalFees += dayFees;
+      totalTrades += dayTrades;
+      totalWins += dayWins;
+
+      days.push({
+        scanDate,
+        tradingDay,
+        startBalance: dayStartBalance,
+        picks: pickData,
+        dayGrossPnl,
+        dayFees,
+        dayNetPnl,
+        endBalance: runningBalance,
+        dayTrades,
+        dayWins,
+      });
+    }
+
+    const daysWithTrades = days.filter(d => d.dayTrades > 0);
+    const showBestWorst = daysWithTrades.length >= 2;
+    const bestDay = showBestWorst
+      ? daysWithTrades.reduce((b, d) => d.dayNetPnl > b.dayNetPnl ? d : b)
+      : null;
+    const worstDay = showBestWorst
+      ? daysWithTrades.reduce((w, d) => d.dayNetPnl < w.dayNetPnl ? d : w)
+      : null;
+
+    totalGrossPnl = Math.round(totalGrossPnl * 100) / 100;
+    totalFees = Math.round(totalFees * 100) / 100;
+    const totalNetPnl = Math.round((totalGrossPnl - totalFees) * 100) / 100;
+
+    return {
+      days,
+      totals: {
+        startingCapital: capital,
+        finalBalance: runningBalance,
+        totalGrossPnl,
+        totalFees,
+        totalNetPnl,
+        totalReturn: Math.round((totalNetPnl / capital) * 100 * 100) / 100,
+        totalTrades,
+        totalWins,
+        winRate: totalTrades > 0 ? Math.round((totalWins / totalTrades) * 100 * 100) / 100 : 0,
+        daysAnalysed: days.length,
+        avgDailyPnl: days.length > 0 ? Math.round((totalNetPnl / days.length) * 100) / 100 : 0,
+        bestDay: bestDay ? { date: bestDay.scanDate, pnl: bestDay.dayNetPnl } : null,
+        worstDay: worstDay ? { date: worstDay.scanDate, pnl: worstDay.dayNetPnl } : null,
+      },
+    };
+  }
+
+  /**
+   * ProRealAlgos picks — same structure as Claude picks but uses the Quick Flip Scalper engine.
+   */
+  // Large-cap watchlist for ProRealAlgos — these have institutional liquidity manipulation
+  private readonly PROREALALGOS_WATCHLIST = [
+    'QQQ', 'SPY', 'AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'META', 'GOOG', 'AMD',
+    'NFLX', 'CRM', 'AVGO', 'COST', 'BA', 'JPM', 'V', 'MA', 'DIS', 'PYPL',
+  ];
+
+  async proRealAlgosTopPicks(endDate: string, capital = 1000, lookbackDays = 10, symbols?: string[], longOnly = false) {
+    const end = new Date(endDate + 'T00:00:00');
+    const start = new Date(end);
+    start.setDate(start.getDate() - Math.ceil(lookbackDays * 1.6));
+    const tradingDays = this.getTradingDays(
+      start.toISOString().split('T')[0],
+      endDate,
+    ).slice(-lookbackDays);
+
+    const watchlist = symbols && symbols.length > 0 ? symbols : this.PROREALALGOS_WATCHLIST;
+    this.logger.log(`ProRealAlgos picks: ${tradingDays.length} days, ${watchlist.length} symbols: ${watchlist.slice(0, 5).join(', ')}${watchlist.length > 5 ? '...' : ''}`);
+
+    const days: Array<any> = [];
+    let runningBalance = capital;
+    let totalGrossPnl = 0;
+    let totalFees = 0;
+    let totalTrades = 0;
+    let totalWins = 0;
+
+    for (const scanDate of tradingDays) {
+      const dayStartBalance = runningBalance;
+
+      // Use the NEXT trading day for intraday bars (scanDate = the day we analyse, tradingDay = when we trade)
+      const tradingDay = scanDate; // For large-caps we trade on the day itself
+      const startTime = `${tradingDay}T09:30:00-04:00`;
+      const endTime = `${tradingDay}T16:00:00-04:00`;
+
+      const daySetups: StockSetup[] = [];
+      const pickData: Array<any> = [];
+
+      for (const symbol of watchlist) {
+        const info: any = {
+          symbol,
+          gapPercent: 0,
+          score: 0,
+          scoreReasons: [],
+          dailyContext: 'large_cap',
+          trendDirection: '',
+          trade: null,
+          skippedReason: null,
+        };
+
+        try {
+          const bars = await this.alpaca.getHistoricalBars(symbol, '5Min', startTime, endTime);
+          if (bars.length < 6) { info.skippedReason = 'Not enough intraday bars'; pickData.push(info); continue; }
+
+          const dailyBars = await this.getDailyBars(symbol, scanDate);
+
+          // Calculate the gap from daily bars (prev close vs today open)
+          let gapPercent = 0;
+          if (dailyBars && dailyBars.length >= 2) {
+            const prevClose = dailyBars[dailyBars.length - 1].close;
+            const todayOpen = bars[0].open;
+            gapPercent = ((todayOpen - prevClose) / prevClose) * 100;
+          }
+          info.gapPercent = Math.round(gapPercent * 10) / 10;
+          const isGapUp = gapPercent > 0;
+
+          daySetups.push({
+            symbol, bars, gapPercent, isGapUp,
+            side: isGapUp ? 'buy' : 'sell',
+            dailyBars,
+            prevClose: dailyBars && dailyBars.length >= 1 ? dailyBars[dailyBars.length - 1].close : undefined,
+          });
+        } catch { info.skippedReason = 'Bar fetch error'; }
+
+        pickData.push(info);
+      }
+
+      let dayGrossPnl = 0;
+      let dayFees = 0;
+      let dayTrades = 0;
+      let dayWins = 0;
+
+      if (daySetups.length > 0) {
+        const sim = simulateProRealAlgos(daySetups, runningBalance, longOnly);
+
+        for (const t of sim.trades) {
+          const info = pickData.find(p => p.symbol === t.symbol);
+          const fees = this.calculateFees(t.side, t.shares || 0, t.entryPrice, t.exitPrice);
+          const netPnl = Math.round((t.pnl - fees) * 100) / 100;
+
+          if (info) {
+            info.trade = {
+              side: t.side, entryPrice: t.entryPrice, exitPrice: t.exitPrice,
+              shares: t.shares || 0, grossPnl: Math.round(t.pnl * 100) / 100,
+              fees, netPnl, pnlPercent: Math.round(t.pnlPercent * 100) / 100,
+              exitReason: t.exitReason,
+            };
+          }
+          dayGrossPnl += t.pnl;
+          dayFees += fees;
+          dayTrades++;
+          if (t.pnl > 0) dayWins++;
+        }
+
+        for (const reason of sim.skippedReasons) {
+          const sym = reason.split(':')[0];
+          const info = pickData.find(p => p.symbol === sym && !p.trade && !p.skippedReason);
+          if (info) info.skippedReason = reason.split(': ').slice(1).join(': ');
+        }
+      }
+
+      dayGrossPnl = Math.round(dayGrossPnl * 100) / 100;
+      dayFees = Math.round(dayFees * 100) / 100;
+      const dayNetPnl = Math.round((dayGrossPnl - dayFees) * 100) / 100;
+      runningBalance = Math.round((runningBalance + dayNetPnl) * 100) / 100;
+
+      totalGrossPnl += dayGrossPnl;
+      totalFees += dayFees;
+      totalTrades += dayTrades;
+      totalWins += dayWins;
+
+      days.push({
+        scanDate, tradingDay, startBalance: dayStartBalance, picks: pickData,
+        dayGrossPnl, dayFees, dayNetPnl, endBalance: runningBalance, dayTrades, dayWins,
+      });
+    }
+
+    const daysWithTrades = days.filter(d => d.dayTrades > 0);
+    const showBestWorst = daysWithTrades.length >= 2;
+    const bestDay = showBestWorst ? daysWithTrades.reduce((b, d) => d.dayNetPnl > b.dayNetPnl ? d : b) : null;
+    const worstDay = showBestWorst ? daysWithTrades.reduce((w, d) => d.dayNetPnl < w.dayNetPnl ? d : w) : null;
+
+    totalGrossPnl = Math.round(totalGrossPnl * 100) / 100;
+    totalFees = Math.round(totalFees * 100) / 100;
+    const totalNetPnl = Math.round((totalGrossPnl - totalFees) * 100) / 100;
+
+    return {
+      days,
+      totals: {
+        startingCapital: capital, finalBalance: runningBalance,
+        totalGrossPnl, totalFees, totalNetPnl,
+        totalReturn: Math.round((totalNetPnl / capital) * 100 * 100) / 100,
+        totalTrades, totalWins,
+        winRate: totalTrades > 0 ? Math.round((totalWins / totalTrades) * 100 * 100) / 100 : 0,
+        daysAnalysed: days.length,
+        avgDailyPnl: days.length > 0 ? Math.round((totalNetPnl / days.length) * 100) / 100 : 0,
+        bestDay: bestDay ? { date: bestDay.scanDate, pnl: bestDay.dayNetPnl } : null,
+        worstDay: worstDay ? { date: worstDay.scanDate, pnl: worstDay.dayNetPnl } : null,
       },
     };
   }

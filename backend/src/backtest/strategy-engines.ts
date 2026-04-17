@@ -93,39 +93,101 @@ function isMomentumBar(bar: BarData): boolean {
 //  EMANUEL'S ENGINE — Complete Gap Scalp System
 // ═══════════════════════════════════════════════════════════════
 //
-// Implements ALL rules from Emanuel's transcripts:
+// Emanuel's COMPLETE trading system from ALL transcripts (11 videos analysed):
 //
-// 1. FILTERING:
-//    - Score >= 30 (Emanuel says pass on 95% of gaps)
-//    - Daily context not 'other'
-//    - 20MA not flat (trendDirection != sideways)
+// PHILOSOPHY: "One and done" — ONE trade per day on the BEST setup.
+// "Share size = Risk / (Entry - Stop)" — size on stop distance.
+// "If there's less than 2:1 risk-to-reward, I cannot take this setup"
 //
-// 2. 200MA BIAS:
-//    - Gap above 200MA = very bullish (floor/support) → long bias
-//    - Gap below 200MA = bearish (ceiling/resistance) → short bias
-//    - Validate gap direction matches 200MA bias
-//    - Squeeze play: price near both 20MA and 200MA
+// MUST-HAVES (deal breakers):
+//   - Rising/declining 20MA (not flat)
+//   - Tight consolidation / clean base (not sloppy)
+//   - High quality overnight gap (daily context)
+//   - Minimum 2:1 R:R to target (prior high/low)
+//   - Score >= 50
+//   - Price >= $2 (no penny stocks)
+//   - Gap >= 5% (explosive movers)
 //
-// 3. 20MA TREND FILTER:
-//    - Rising 20MA under price = uptrend → retrace to 20MA = buy
-//    - Declining 20MA over price = downtrend → retrace to 20MA = short
-//    - Skip overextended setups (price too far from intraday 20MA)
+// CANNOT-HAVES (instant reject):
+//   - Timeframe conflict (daily vs intraday disagree)
+//   - Sloppy price action
+//   - Less than 2:1 R:R
+//   - Spread > 10% of stop (proxy: low volume)
 //
-// 4. ENTRY METHODS (tried in order):
-//    a. Opening Range Breakout (first bar high/low, skip if >3% range)
-//    b. 1-2-3 Pattern (igniting bar → doji/resting bar → trigger)
-//    c. Retracement to intraday 20MA with bottoming/topping tail
+// ENTRY METHODS (within first hour):
+//   1. ORB — first 5-min candle breakout (skip if range > 3%)
+//      "My suggestion is to do it off the 5-minute. It's a lot safer. It's more controlled."
+//      Configurable via orbTimeframeMinutes — 5 is Emanuel's default; 1 or 2 = aggressive.
+//   2. 1-2-3 Pattern — igniting → doji/resting → trigger
+//   3. Retracement to 20MA — 3+ red bars, 40-60% golden zone, bottoming/topping tail
+//   4. Base breakout — tight consolidation into 20MA, narrow range bars, entry over base
+//   * Failed breakdown/shakeout amplifies any setup to A+ quality
 //
-// 5. TRADE MANAGEMENT:
-//    - Initial stop from entry method
-//    - At 2:1 R:R → activate bar-by-bar trail (every 3 bars ≈ 15min)
-//    - At 5:1 R:R → tighten to every bar (≈ 5min)
+// FLEXIBILITY CLAUSE (new transcript):
+//   "There are times when the gap is so high quality that I will be flexible with
+//   the intraday setup where I'll still take the trade even if it's not A+"
+//   → When setup.score >= exceptionalGapScore, relax intraday filters:
+//       - Accept R:R as low as flexibilityMinRR (vs 2.0 normally)
+//       - Base range max: 2.0% (vs 1.5%)
+//       - Retracement golden zone: 20-80% (vs 30-70%)
+//       - NRB minimum: 1 (vs 2)
+//
+// TRADE MANAGEMENT:
+//   - At 2:1 R:R → activate 15-min bar-by-bar trail
+//   - At 4R → tighten to 5-min bar-by-bar
+//   - "Protect 50-60% of daily profits"
+//   - Exit at market close (16:00)
+//
+// RISK MANAGEMENT:
+//   - Risk 2% of capital per trade
+//   - Daily loss limit: 3-4R — stop trading
+//   - Never add to losers
+//   - Move stop to breakeven if entry tags but loses momentum
+
+export interface EmanuelParams {
+  /**
+   * ORB first-candle timeframe in minutes. Emanuel's stated preference is 5-min
+   * ("safer, more controlled") per "My Scalping Strategy is BORING" transcript.
+   * 1 or 2 = aggressive (he rarely trades these unless in love with the gap).
+   * NOTE: intraday bars are 5-min — if set to 1 or 2, ORB is skipped (granularity mismatch).
+   */
+  orbTimeframeMinutes: 1 | 2 | 5;
+  /** Skip ORB if the first candle's range exceeds this % (want narrow-range first candle). */
+  orbMaxRangePercent: number;
+  /** Minimum setup score to consider the trade at all. */
+  minScore: number;
+  /** Normal minimum R:R. */
+  minRR: number;
+  /** When setup.score >= exceptionalGapScore, the flexibility clause kicks in. */
+  exceptionalGapScore: number;
+  /** Relaxed minimum R:R used when the flexibility clause is active. */
+  flexibilityMinRR: number;
+  /** Risk per trade as a fraction of capital. */
+  riskPercent: number;
+  /** Activate bar-by-bar trail at this R:R. */
+  trailActivateRR: number;
+  /** Tighten trail (15-min → 5-min bars) at this R:R. */
+  trailTightenRR: number;
+}
+
+export const EMANUEL_DEFAULT_PARAMS: EmanuelParams = {
+  orbTimeframeMinutes: 5,
+  orbMaxRangePercent: 3,
+  minScore: 50,
+  minRR: 2.0,
+  exceptionalGapScore: 70,
+  flexibilityMinRR: 1.5,
+  riskPercent: 0.02,
+  trailActivateRR: 2,
+  trailTightenRR: 4,
+};
 
 export function simulateEmanuel(
   setups: StockSetup[],
   capital: number,
+  params?: Partial<EmanuelParams>,
 ): SimResult {
-  const capitalPerStock = capital / Math.max(setups.length, 1);
+  const p = { ...EMANUEL_DEFAULT_PARAMS, ...params };
   let equity = capital;
   let maxEquity = equity;
   let maxDrawdown = 0;
@@ -133,247 +195,272 @@ export function simulateEmanuel(
   let skippedStocks = 0;
   const skippedReasons: string[] = [];
 
-  for (const setup of setups) {
+  // ── ONE AND DONE: Sort by score, trade only the best ──
+  const sorted = [...setups].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+  // Risk per trade. "Share size = Risk / (Entry - Stop)"
+  const maxRisk = capital * p.riskPercent;
+
+  // Intraday bar granularity is 5-min. If the user sets orbTimeframeMinutes to 1 or 2,
+  // we can't synthesise a sub-5-min first candle from 5-min bars, so ORB is skipped.
+  const orbEnabled = p.orbTimeframeMinutes === 5;
+
+  const FIRST_HOUR_BARS = 12; // entries within first hour only
+  let traded = false;
+
+  for (const setup of sorted) {
+    if (traded) {
+      skippedStocks++;
+      skippedReasons.push(`${setup.symbol}: Already traded today (one and done)`);
+      continue;
+    }
+
     const { bars, isGapUp, side, gapPercent, symbol } = setup;
 
-    // ── FILTER 1: Emanuel says "pass on 95% of gaps" — need score ──
-    if ((setup.score ?? 0) < 30) {
+    // ══════════════════════════════════════════
+    //  MUST-HAVES — all required or skip
+    // ══════════════════════════════════════════
+
+    if ((setup.score ?? 0) < p.minScore) {
       skippedStocks++;
-      skippedReasons.push(`${symbol}: Score ${setup.score ?? 0} too low (need 30+)`);
+      skippedReasons.push(`${symbol}: Score ${setup.score ?? 0} too low (need ${p.minScore}+)`);
       continue;
     }
 
-    // ── FILTER 2: Need clear daily context ──
+    // Flexibility clause: "If the gap is so high quality, I'll take the trade even if
+    // it's not A+" — score >= exceptionalGapScore unlocks relaxed intraday filters.
+    const isExceptional = (setup.score ?? 0) >= p.exceptionalGapScore;
     if (setup.dailyContext === 'other') {
       skippedStocks++;
-      skippedReasons.push(`${symbol}: No clear daily chart context`);
+      skippedReasons.push(`${symbol}: No clear daily context — cannot have`);
       continue;
     }
-
-    // ── FILTER 3: 20MA must not be flat ──
     if (setup.trendDirection === 'sideways') {
       skippedStocks++;
-      skippedReasons.push(`${symbol}: Flat 20MA — no momentum, Emanuel says ignore`);
+      skippedReasons.push(`${symbol}: Flat 20MA — no momentum`);
       continue;
     }
-
-    if (bars.length < 4) {
+    if ((bars[0]?.open ?? 0) < 2) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Price too low — no penny stocks`);
+      continue;
+    }
+    if (Math.abs(gapPercent) < 5) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Gap ${gapPercent.toFixed(1)}% too small (need 5%+)`);
+      continue;
+    }
+    if (bars.length < 6) {
       skippedStocks++;
       skippedReasons.push(`${symbol}: Not enough bars`);
       continue;
     }
 
-    // ── Calculate MAs (fill from dailyBars if gap scanner didn't have enough history) ──
-    const { ma20: resolvedMA20, ma200: resolvedMA200 } = fillMAs(setup);
+    // ══════════════════════════════════════════
+    //  CANNOT-HAVES — volume/spread proxy check
+    // ══════════════════════════════════════════
 
-    // ── 200MA BIAS CHECK ──
-    // From transcript: "Gap above 200MA = very bullish" / "Gap below 200MA = bearish"
-    // "I really like gaps that open below the 200" (for shorts)
-    // "Gap UP above 200MA triggering this base breakout" (for longs)
+    // "Spread should be less than 5-10% of stop" / "maximum one penny spread for scalping"
+    // Proxy: if first 3 bars have very low volume, liquidity is bad
+    const avgVol3 = bars.slice(0, 3).reduce((s, b) => s + b.volume, 0) / 3;
+    if (avgVol3 < 5000) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Very low volume (${Math.round(avgVol3)}) — likely wide spread`);
+      continue;
+    }
+
+    // ── MAs ──
+    const { ma20: resolvedMA20, ma200: resolvedMA200 } = fillMAs(setup);
     const has200MA = resolvedMA200 != null && resolvedMA200 > 0;
     const openPrice = bars[0].open;
 
-    if (has200MA) {
-      const priceVs200 = openPrice > resolvedMA200! ? 'above' : 'below';
-
-      // Gap up but opening below 200MA — 200MA acts as ceiling/resistance
-      // Less bullish, might get rejected. Still tradeable but lower conviction.
-      // Gap down but opening above 200MA — 200MA acts as floor/support
-      // Less bearish, might bounce. Lower conviction short.
-      if (isGapUp && priceVs200 === 'below') {
-        // Opening below 200MA on a gap up — 200MA is resistance overhead
-        // Emanuel: this is not ideal for longs, 200MA is ceiling
-        // Still allow but note it
-      }
-      if (!isGapUp && priceVs200 === 'above') {
-        // Opening above 200MA on a gap down — 200MA is support below
-        // Emanuel: 200MA acts as floor, might bounce
-        // Still allow but note it
-      }
-
-      // Squeeze play detection: price near both 20MA and 200MA
-      if (resolvedMA20 != null && resolvedMA20 > 0) {
-        const ma20to200dist = Math.abs(resolvedMA20 - resolvedMA200!) / resolvedMA200! * 100;
-        const priceToMAdist = Math.abs(openPrice - resolvedMA200!) / resolvedMA200! * 100;
-        if (ma20to200dist < 2 && priceToMAdist < 3) {
-          // Squeeze play — 20MA and 200MA are very close, price between them
-          // Emanuel: "extremely powerful" but "quite rare" — boost conviction
-          // We'll let the trade through regardless of other filters
-        }
-      }
-    }
-
-    // ── 200MA as directional confirmation ──
-    // Emanuel: "I went into yesterday with a bearish bias" (when gapped below 200)
-    // "gapped above the 200 triggering this base breakout" (bullish)
     let directionConfirmed = true;
     if (has200MA) {
-      if (isGapUp && openPrice < resolvedMA200!) {
-        // Gap up but below 200MA — 200MA is overhead resistance
-        // Reduce conviction but don't skip (Emanuel still trades these)
-        directionConfirmed = false;
-      }
-      if (!isGapUp && openPrice > resolvedMA200!) {
-        // Gap down but above 200MA — 200MA is floor support
-        directionConfirmed = false;
-      }
+      if (isGapUp && openPrice < resolvedMA200!) directionConfirmed = false;
+      if (!isGapUp && openPrice > resolvedMA200!) directionConfirmed = false;
     }
 
-    // ── 20MA TREND CONFIRMATION ──
-    // Check daily 20MA vs price for additional bias
-    const has20MA = resolvedMA20 != null && resolvedMA20 > 0;
-    if (has20MA) {
-      // Rising 20MA under price = uptrend → confirms longs
-      // Declining 20MA over price = downtrend → confirms shorts
-      if (isGapUp && resolvedMA20! > openPrice) {
-        // 20MA is ABOVE price on gap up — counter-trend, lower conviction
-        // Emanuel: we want 20MA UNDER price for longs
-      }
-      if (!isGapUp && resolvedMA20! < openPrice) {
-        // 20MA is BELOW price on gap down — counter-trend
-        // Emanuel: we want 20MA OVER price for shorts
-      }
+    // ── Intraday 20-SMA ──
+    const closes = bars.map(b => b.close);
+    const intraday20MA: (number | null)[] = closes.map((_, i) => sma(closes, i, 20));
+
+    // ══════════════════════════════════════════
+    //  FIND TARGET — prior high/low from first-hour bars
+    //  "My target was the prior high"
+    // ══════════════════════════════════════════
+
+    const searchLimit = Math.min(bars.length, FIRST_HOUR_BARS);
+
+    // Find intraday high/low from bars so far as initial target reference
+    let targetPrice: number | null = null;
+    if (isGapUp) {
+      // Target = highest point reached in first few bars (prior high)
+      const firstBarsHigh = Math.max(...bars.slice(0, Math.min(6, bars.length)).map(b => b.high));
+      targetPrice = firstBarsHigh;
+    } else {
+      const firstBarsLow = Math.min(...bars.slice(0, Math.min(6, bars.length)).map(b => b.low));
+      targetPrice = firstBarsLow;
     }
 
-    // ── Build intraday 20-SMA from 5-min bars ──
-    const closes: number[] = bars.map(b => b.close);
-    const intraday20MA: (number | null)[] = closes.map((_, i) => {
-      // Use a 4-period SMA on 5-min bars (20 min equivalent)
-      // Since we only have ~12 bars (1 hour of 5-min), 20-period won't work
-      return sma(closes, i, 4);
-    });
-
-    // ── TRY ENTRY METHODS IN ORDER ──
+    // ══════════════════════════════════════════
+    //  ENTRY METHODS — with new quality checks
+    // ══════════════════════════════════════════
 
     let entryPrice: number | null = null;
     let stopLevel: number | null = null;
     let entryBarIndex = -1;
     let entryMethodUsed = '';
+    let hasShakeout = false; // Failed breakdown amplifies quality
 
-    // ── METHOD 1: Opening Range Breakout ──
-    // First 5-min candle: entry above high (long) or below low (short)
-    // Skip if candle is too wide (>3%)
+    // METHOD 1: Opening Range Breakout (skip if range > orbMaxRangePercent, or if ORB disabled)
     const orbBar = bars[0];
-    const orbRange = orbBar.high - orbBar.low;
-    const orbRangePercent = (orbRange / orbBar.open) * 100;
+    const orbRangePct = (orbBar.high - orbBar.low) / orbBar.open * 100;
 
-    if (orbRangePercent <= 3) {
+    if (orbEnabled && orbRangePct <= p.orbMaxRangePercent) {
       const orbEntry = isGapUp ? orbBar.high : orbBar.low;
       const orbStop = isGapUp ? orbBar.low : orbBar.high;
 
-      // Scan for ORB trigger in bars 1-3
-      for (let i = 1; i < Math.min(bars.length, 4); i++) {
-        const bar = bars[i];
-        if (isGapUp && bar.high >= orbEntry) {
-          entryPrice = orbEntry;
-          stopLevel = orbStop;
-          entryBarIndex = i;
-          entryMethodUsed = 'Opening Range Breakout';
-          break;
+      for (let i = 1; i < Math.min(searchLimit, 4); i++) {
+        if (isGapUp && bars[i].high >= orbEntry) {
+          entryPrice = orbEntry; stopLevel = orbStop;
+          entryBarIndex = i; entryMethodUsed = 'Opening Range Breakout'; break;
         }
-        if (!isGapUp && bar.low <= orbEntry) {
-          entryPrice = orbEntry;
-          stopLevel = orbStop;
-          entryBarIndex = i;
-          entryMethodUsed = 'Opening Range Breakout';
-          break;
+        if (!isGapUp && bars[i].low <= orbEntry) {
+          entryPrice = orbEntry; stopLevel = orbStop;
+          entryBarIndex = i; entryMethodUsed = 'Opening Range Breakout'; break;
         }
       }
     }
 
-    // ── METHOD 2: 1-2-3 Pattern ──
-    // Igniting bar (momentum) → Resting bar (doji/small) → Trigger bar breaks resting high/low
-    if (entryPrice === null && bars.length >= 4) {
-      for (let i = 0; i < bars.length - 2; i++) {
-        const igniting = bars[i];
-        const resting = bars[i + 1];
-        const trigger = bars[i + 2];
-
-        // Check igniting bar is a momentum bar in the gap direction
-        const ignitingBullish = igniting.close > igniting.open && isMomentumBar(igniting);
-        const ignitingBearish = igniting.close < igniting.open && isMomentumBar(igniting);
-
-        if (isGapUp && ignitingBullish && (isDoji(resting) || hasBottomingTail(resting))) {
-          // Trigger: breaks above resting bar high
-          if (trigger.high >= resting.high) {
-            entryPrice = resting.high;
-            stopLevel = resting.low;
-            entryBarIndex = i + 2;
-            entryMethodUsed = '1-2-3 Pattern';
-            break;
-          }
-        }
-        if (!isGapUp && ignitingBearish && (isDoji(resting) || hasToppingTail(resting))) {
-          // Trigger: breaks below resting bar low
-          if (trigger.low <= resting.low) {
-            entryPrice = resting.low;
-            stopLevel = resting.high;
-            entryBarIndex = i + 2;
-            entryMethodUsed = '1-2-3 Pattern';
-            break;
-          }
-        }
-      }
-    }
-
-    // ── METHOD 3: Retracement to Intraday 20MA ──
-    // Look for price pulling back to touch the intraday 20MA with a bottoming/topping tail
+    // METHOD 2: 1-2-3 Pattern — igniting → doji/resting → trigger
     if (entryPrice === null) {
-      for (let i = 2; i < bars.length; i++) {
+      for (let i = 0; i < searchLimit - 2; i++) {
+        const ig = bars[i], re = bars[i + 1], tr = bars[i + 2];
+
+        if (isGapUp && ig.close > ig.open && isMomentumBar(ig) && (isDoji(re) || hasBottomingTail(re))) {
+          if (tr.high >= re.high) {
+            entryPrice = re.high; stopLevel = re.low;
+            entryBarIndex = i + 2; entryMethodUsed = '1-2-3 Pattern'; break;
+          }
+        }
+        if (!isGapUp && ig.close < ig.open && isMomentumBar(ig) && (isDoji(re) || hasToppingTail(re))) {
+          if (tr.low <= re.low) {
+            entryPrice = re.low; stopLevel = re.high;
+            entryBarIndex = i + 2; entryMethodUsed = '1-2-3 Pattern'; break;
+          }
+        }
+      }
+    }
+
+    // METHOD 3: Retracement to 20MA — NEW: requires 3 red bars + golden zone
+    // "I need three consecutive red bars" + "40-60% retracement zone"
+    if (entryPrice === null) {
+      for (let i = 5; i < searchLimit; i++) {
         const bar = bars[i];
         const ma = intraday20MA[i];
         if (ma === null) continue;
 
+        // Count consecutive bars against the trend (red for longs, green for shorts)
+        let consecutiveCounter = 0;
+        for (let j = i; j >= Math.max(0, i - 4); j--) {
+          if (isGapUp && bars[j].close < bars[j].open) consecutiveCounter++;
+          else if (!isGapUp && bars[j].close > bars[j].open) consecutiveCounter++;
+          else break;
+        }
+
+        if (consecutiveCounter < 2) continue; // Need at least 2 bars pulling back (relaxed from 3 for 5-min)
+
+        // Check 40-60% retracement of the prior move (golden zone)
+        const moveHigh = Math.max(...bars.slice(0, i).map(b => b.high));
+        const moveLow = Math.min(...bars.slice(0, i).map(b => b.low));
+        const moveRange = moveHigh - moveLow;
+        if (moveRange <= 0) continue;
+
+        // Flexibility clause widens the golden zone when the daily gap is exceptional.
+        const zoneMin = isExceptional ? 0.2 : 0.3;
+        const zoneMax = isExceptional ? 0.8 : 0.7;
+
         if (isGapUp) {
-          // Price retraces down to 20MA, bottoming tail/doji = buy
-          const touchedMA = bar.low <= ma * 1.002; // within 0.2% of MA
+          const retraceDepth = (moveHigh - bar.low) / moveRange;
+          if (retraceDepth < zoneMin || retraceDepth > zoneMax) continue; // Not in golden zone
+
+          const touchedMA = bar.low <= ma * 1.005;
           const priceAboveMA = bar.close > ma;
           if (touchedMA && priceAboveMA && (hasBottomingTail(bar) || isDoji(bar))) {
-            entryPrice = bar.close;
-            // Stop below the bar's low (which touched the MA)
-            stopLevel = bar.low;
+            // Check for shakeout amplification
+            if (bar.low < moveLow * 1.01 && bar.close > moveLow) hasShakeout = true;
+            entryPrice = bar.close; stopLevel = bar.low;
             entryBarIndex = i;
-            entryMethodUsed = 'Retracement to 20MA';
+            entryMethodUsed = isExceptional
+              ? 'Retracement to 20MA (golden zone, flex)'
+              : 'Retracement to 20MA (golden zone)';
             break;
           }
         } else {
-          // Price retraces up to 20MA, topping tail/doji = short
-          const touchedMA = bar.high >= ma * 0.998;
+          const retraceDepth = (bar.high - moveLow) / moveRange;
+          if (retraceDepth < zoneMin || retraceDepth > zoneMax) continue;
+
+          const touchedMA = bar.high >= ma * 0.995;
           const priceBelowMA = bar.close < ma;
           if (touchedMA && priceBelowMA && (hasToppingTail(bar) || isDoji(bar))) {
-            entryPrice = bar.close;
-            stopLevel = bar.high;
+            if (bar.high > moveHigh * 0.99 && bar.close < moveHigh) hasShakeout = true;
+            entryPrice = bar.close; stopLevel = bar.high;
             entryBarIndex = i;
-            entryMethodUsed = 'Retracement to 20MA';
+            entryMethodUsed = isExceptional
+              ? 'Retracement to 20MA (golden zone, flex)'
+              : 'Retracement to 20MA (golden zone)';
             break;
           }
         }
       }
     }
 
-    // ── METHOD 4: Fallback — simple ORB even if wide, with wider stop ──
+    // METHOD 4: Base breakout into 20MA — NEW: tight base check + NRB requirement
+    // "Tight consolidation. Not sloppy. Narrow range bars."
     if (entryPrice === null) {
-      // If no clean entry found, use first bar open as entry with fixed 1% stop
-      // This represents "just getting in" on high-conviction daily setups
-      // Only if direction is confirmed by 200MA
-      if (directionConfirmed) {
-        entryPrice = bars[0].open;
-        stopLevel = isGapUp
-          ? entryPrice * (1 - 1 / 100)
-          : entryPrice * (1 + 1 / 100);
-        entryBarIndex = 0;
-        entryMethodUsed = 'Market entry (high conviction)';
+      for (let i = 4; i < searchLimit; i++) {
+        const ma = intraday20MA[i];
+        if (ma === null || i + 1 >= bars.length) continue;
+
+        const baseBars = bars.slice(Math.max(0, i - 3), i + 1);
+        const baseHigh = Math.max(...baseBars.map(b => b.high));
+        const baseLow = Math.min(...baseBars.map(b => b.low));
+        const baseRange = (baseHigh - baseLow) / baseLow * 100;
+
+        // Base must be tight (< 1.5% range, or 2.0% when flexibility is active) with NRBs
+        const maxBaseRange = isExceptional ? 2.0 : 1.5;
+        if (baseRange > maxBaseRange) continue;
+
+        // Check for narrow range bars (body < 40% of range for most bars)
+        const nrbCount = baseBars.filter(b => {
+          const r = b.high - b.low;
+          return r > 0 && Math.abs(b.close - b.open) / r < 0.4;
+        }).length;
+        const minNrbCount = isExceptional ? 1 : 2;
+        if (nrbCount < minNrbCount) continue;
+
+        // Check for shakeout (bottoming tail breaking below base then recovering)
+        const shakeoutBar = baseBars.find(b => b.low < baseLow * 0.998 && b.close > baseLow);
+        if (shakeoutBar) hasShakeout = true;
+
+        const nextBar = bars[i + 1];
+        if (isGapUp && Math.abs(baseLow - ma) / ma < 0.01 && nextBar.high > baseHigh) {
+          entryPrice = baseHigh; stopLevel = hasShakeout ? Math.min(baseLow, shakeoutBar?.low ?? baseLow) : baseLow;
+          entryBarIndex = i + 1; entryMethodUsed = hasShakeout ? 'Base breakout + shakeout (A+)' : 'Base breakout into 20MA'; break;
+        }
+        if (!isGapUp && Math.abs(baseHigh - ma) / ma < 0.01 && nextBar.low < baseLow) {
+          entryPrice = baseLow; stopLevel = hasShakeout ? Math.max(baseHigh, shakeoutBar?.high ?? baseHigh) : baseHigh;
+          entryBarIndex = i + 1; entryMethodUsed = hasShakeout ? 'Base breakout + shakeout (A+)' : 'Base breakout into 20MA'; break;
+        }
       }
     }
 
-    // No entry found at all
     if (entryPrice === null || stopLevel === null) {
       skippedStocks++;
-      skippedReasons.push(`${symbol}: No valid entry pattern found and 200MA didn't confirm direction`);
+      skippedReasons.push(`${symbol}: No setup in first hour — Emanuel passes`);
       continue;
     }
 
-    // ── TRADE MANAGEMENT: Bar-by-bar trailing ──
     const riskPerShare = Math.abs(entryPrice - stopLevel);
     if (riskPerShare <= 0) {
       skippedStocks++;
@@ -381,18 +468,54 @@ export function simulateEmanuel(
       continue;
     }
 
+    // ══════════════════════════════════════════
+    //  R:R CHECK — "less than 2:1 = cannot take"
+    // ══════════════════════════════════════════
+
+    if (targetPrice !== null) {
+      const potentialReward = isGapUp
+        ? targetPrice - entryPrice
+        : entryPrice - targetPrice;
+      const potentialRR = potentialReward / riskPerShare;
+
+      // Flexibility clause: exceptional gap lets Emanuel accept a lower R:R
+      const rrFloor = isExceptional ? p.flexibilityMinRR : p.minRR;
+      if (potentialRR < rrFloor) {
+        skippedStocks++;
+        skippedReasons.push(`${symbol}: R:R ${potentialRR.toFixed(1)}:1 < ${rrFloor}:1 minimum — cannot take`);
+        continue;
+      }
+    }
+
+    // ══════════════════════════════════════════
+    //  POSITION SIZING: "Share size = Risk / (Entry - Stop)"
+    // ══════════════════════════════════════════
+
+    const shares = Math.floor(maxRisk / riskPerShare);
+    if (shares <= 0) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Stop too wide for capital`);
+      continue;
+    }
+
+    // ══════════════════════════════════════════
+    //  TRADE MANAGEMENT — full day bar-by-bar trail
+    // ══════════════════════════════════════════
+
     let exitPrice: number | null = null;
-    let exitReason: SimulatedTrade['exitReason'] = 'end_of_hour';
+    let exitReason: SimulatedTrade['exitReason'] = 'end_of_day';
     let trailingStop = stopLevel;
     let trailingActive = false;
     let tightTrailActive = false;
     let barsSinceLastTrailUpdate = 0;
 
-    // Process bars from entry onward
+    // Track daily high water mark for "protect 50-60% of profits" rule
+    let bestPnlSoFar = 0;
+
     for (let i = entryBarIndex; i < bars.length; i++) {
       const bar = bars[i];
 
-      // ── Check stop loss (or trailing stop) ──
+      // Check stop / trailing stop
       if (isGapUp && bar.low <= trailingStop) {
         exitPrice = trailingStop;
         exitReason = trailingActive ? 'take_profit' : 'stop_loss';
@@ -404,73 +527,58 @@ export function simulateEmanuel(
         break;
       }
 
-      // ── 200MA as resistance/support target ──
-      // If we have 200MA data and price approaches it from the "wrong" side, consider taking profit
+      // 200MA as resistance/support exit
       if (has200MA && !directionConfirmed) {
-        // E.g., long but below 200MA — if price reaches 200MA, that's resistance
         if (isGapUp && bar.high >= resolvedMA200!) {
-          exitPrice = resolvedMA200!;
-          exitReason = 'take_profit';
-          break;
+          exitPrice = resolvedMA200!; exitReason = 'take_profit'; break;
         }
         if (!isGapUp && bar.low <= resolvedMA200!) {
-          exitPrice = resolvedMA200!;
-          exitReason = 'take_profit';
-          break;
+          exitPrice = resolvedMA200!; exitReason = 'take_profit'; break;
         }
       }
 
-      // ── Calculate current R:R ──
-      const currentPnlPerShare = isGapUp
-        ? bar.close - entryPrice
-        : entryPrice - bar.close;
-      const currentRR = currentPnlPerShare / riskPerShare;
+      const currentPnl = isGapUp ? bar.close - entryPrice : entryPrice - bar.close;
+      const currentRR = currentPnl / riskPerShare;
 
-      // ── Activate trailing at 2:1 R:R ──
-      if (!trailingActive && currentRR >= 2) {
+      // Track best P/L for profit protection rule
+      const currentPnlDollar = currentPnl * shares;
+      if (currentPnlDollar > bestPnlSoFar) bestPnlSoFar = currentPnlDollar;
+
+      // "Protect 50-60% of daily profits" — if we've been up big and now giving back
+      if (bestPnlSoFar > maxRisk * 2 && currentPnlDollar < bestPnlSoFar * 0.5) {
+        exitPrice = bar.close;
+        exitReason = 'take_profit';
+        break;
+      }
+
+      // Activate 15-min bar-by-bar trail at trailActivateRR
+      if (!trailingActive && currentRR >= p.trailActivateRR) {
         trailingActive = true;
         barsSinceLastTrailUpdate = 0;
       }
 
-      // ── Tighten trailing at 5:1 R:R ──
-      if (trailingActive && !tightTrailActive && currentRR >= 5) {
+      // Tighten to 5-min at trailTightenRR
+      if (trailingActive && !tightTrailActive && currentRR >= p.trailTightenRR) {
         tightTrailActive = true;
         barsSinceLastTrailUpdate = 0;
       }
 
-      // ── Update trailing stop ──
       if (trailingActive) {
         barsSinceLastTrailUpdate++;
-        const updateInterval = tightTrailActive ? 1 : 3; // 5min vs 15min equivalent
-
-        if (barsSinceLastTrailUpdate >= updateInterval) {
+        const interval = tightTrailActive ? 1 : 3;
+        if (barsSinceLastTrailUpdate >= interval) {
           barsSinceLastTrailUpdate = 0;
-          if (isGapUp) {
-            // Trail to bar's low, only move UP
-            const newStop = bar.low;
-            if (newStop > trailingStop) {
-              trailingStop = newStop;
-            }
-          } else {
-            // Trail to bar's high, only move DOWN
-            const newStop = bar.high;
-            if (newStop < trailingStop) {
-              trailingStop = newStop;
-            }
-          }
+          if (isGapUp) { if (bar.low > trailingStop) trailingStop = bar.low; }
+          else { if (bar.high < trailingStop) trailingStop = bar.high; }
         }
       }
     }
 
-    // End of hour exit
     if (exitPrice === null) {
       exitPrice = bars[bars.length - 1].close;
-      exitReason = 'end_of_hour';
+      exitReason = 'end_of_day';
     }
 
-    // ── Calculate P/L ──
-    const shares = Math.floor(capitalPerStock / entryPrice);
-    if (shares <= 0) continue;
     const multiplier = isGapUp ? 1 : -1;
     const pnlPerShare = (exitPrice - entryPrice) * multiplier;
     const pnlPercent = (pnlPerShare / entryPrice) * 100;
@@ -494,6 +602,8 @@ export function simulateEmanuel(
       gapPercent,
       equityAfter: equity,
     });
+
+    traded = true;
   }
 
   const wins = trades.filter((t) => t.pnl > 0).length;
@@ -506,7 +616,7 @@ export function simulateEmanuel(
     winRate,
     maxDrawdown,
     finalEquity: equity,
-    entryMethod: 'Gap Scalp System (ORB → 1-2-3 → 20MA Retracement) + 200MA Bias + Bar-by-Bar Trail',
+    entryMethod: 'One-and-Done: ORB → 1-2-3 → 20MA Golden Zone Retracement → Tight Base Breakout + Bar-by-Bar Trail',
     skippedStocks,
     skippedReasons,
   };
@@ -559,18 +669,38 @@ function findSwingHighs(dailyBars: BarData[], lookback: number): number[] {
 }
 
 export interface ClaudeParams {
-  swingLookback: number;  // bars on each side for swing detection (default 3)
-  waitBars: number;       // wait for stop cascade to exhaust (default 3)
-  stopBuffer: number;     // buffer beyond extreme as decimal (default 0.001 = 0.1%)
-  rejectionThreshold: number; // wick ratio to count as rejection (default 0.4)
+  maxTradesPerDay: number;
+  entryWindowBars: number;
+  trailActivateRR: number;
+  partialProfitRR: number;
+  partialProfitPercent: number;
+  maxDailyLossPercent: number;
+  eodTightenBar: number;
 }
 
 export const CLAUDE_DEFAULT_PARAMS: ClaudeParams = {
-  swingLookback: 3,
-  waitBars: 3,
-  stopBuffer: 0.001,
-  rejectionThreshold: 0.4,
+  maxTradesPerDay: 3,
+  entryWindowBars: 24,    // 2 hours
+  trailActivateRR: 1.5,
+  partialProfitRR: 2.0,
+  partialProfitPercent: 50,
+  maxDailyLossPercent: 6,
+  eodTightenBar: 72,      // last 30 min (bar 72 of 78)
 };
+
+// ═══════════════════════════════════════════════════════════════
+//  CLAUDE'S ENGINE — Enhanced Gap Strategy
+// ═══════════════════════════════════════════════════════════════
+//
+// Built on Emanuel's rules but optimised for $1,000 capital → $50/day:
+//
+// 1. UP TO 3 TRADES/DAY — if #1 stops out, take #2 from watchlist
+// 2. SCORE-WEIGHTED SIZING — more risk on high-conviction setups
+// 3. EXTENDED ENTRY WINDOW — 2 hours not 1
+// 4. FASTER TRAIL — activate at 1.5R not 2R
+// 5. PARTIAL PROFITS — take 50% at 2R, trail rest
+// 6. RE-ENTRY — if stopped out, 20MA retrace = new entry
+// 7. EOD TIGHTENING — 1-bar trail in last 30 min
 
 export function simulateClaude(
   setups: StockSetup[],
@@ -578,7 +708,6 @@ export function simulateClaude(
   params?: Partial<ClaudeParams>,
 ): SimResult {
   const p = { ...CLAUDE_DEFAULT_PARAMS, ...params };
-  const capitalPerStock = capital / Math.max(setups.length, 1);
   let equity = capital;
   let maxEquity = equity;
   let maxDrawdown = 0;
@@ -586,170 +715,165 @@ export function simulateClaude(
   let skippedStocks = 0;
   const skippedReasons: string[] = [];
 
-  const SWING_LOOKBACK = p.swingLookback;
-  const WAIT_BARS = p.waitBars;
-  const STOP_BUFFER = p.stopBuffer;
+  // Sort by score descending — trade best setups first
+  const sorted = [...setups].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 
-  for (const setup of setups) {
-    const { bars, isGapUp, gapPercent, symbol, dailyBars, prevClose } = setup;
+  let tradesThisDay = 0;
+  let dailyLoss = 0;
+  const maxDailyLoss = capital * (p.maxDailyLossPercent / 100);
 
-    if (bars.length < WAIT_BARS + 2) {
+  for (const setup of sorted) {
+    // Daily limits
+    if (tradesThisDay >= p.maxTradesPerDay) {
       skippedStocks++;
-      skippedReasons.push(`${symbol}: Not enough intraday bars`);
+      skippedReasons.push(`${setup.symbol}: Max ${p.maxTradesPerDay} trades/day reached`);
+      continue;
+    }
+    if (dailyLoss >= maxDailyLoss) {
+      skippedStocks++;
+      skippedReasons.push(`${setup.symbol}: Daily loss limit hit ($${dailyLoss.toFixed(0)}/$${maxDailyLoss.toFixed(0)})`);
       continue;
     }
 
-    // ── Step 1: Build S/R levels from daily bars ──
-    const supportLevels: number[] = [];
-    const resistanceLevels: number[] = [];
+    const { bars, isGapUp, side, gapPercent, symbol } = setup;
+    const score = setup.score ?? 0;
 
-    if (dailyBars && dailyBars.length >= SWING_LOOKBACK * 2 + 1) {
-      // Swing detection when we have enough bars
-      supportLevels.push(...findSwingLows(dailyBars, SWING_LOOKBACK));
-      resistanceLevels.push(...findSwingHighs(dailyBars, SWING_LOOKBACK));
-    }
-
-    if (dailyBars && dailyBars.length >= 3) {
-      // Fallback: use recent N-day high/low as S/R
-      // These are levels where stops cluster — below recent lows, above recent highs
-      const recentBars = dailyBars.slice(-Math.min(20, dailyBars.length));
-      const recentLow = Math.min(...recentBars.map(b => b.low));
-      const recentHigh = Math.max(...recentBars.map(b => b.high));
-      supportLevels.push(recentLow);
-      resistanceLevels.push(recentHigh);
-
-      // Also add the lowest close and highest close as secondary levels
-      const recentLowClose = Math.min(...recentBars.map(b => b.close));
-      const recentHighClose = Math.max(...recentBars.map(b => b.close));
-      if (recentLowClose !== recentLow) supportLevels.push(recentLowClose);
-      if (recentHighClose !== recentHigh) resistanceLevels.push(recentHighClose);
-    }
-
-    // Add MA levels as institutional S/R (fill from dailyBars if gap scanner missed them)
-    const { ma20: claudeMA20, ma200: claudeMA200 } = fillMAs(setup);
-    if (claudeMA200 != null && claudeMA200 > 0) {
-      supportLevels.push(claudeMA200);
-      resistanceLevels.push(claudeMA200);
-    }
-    if (claudeMA20 != null && claudeMA20 > 0) {
-      supportLevels.push(claudeMA20);
-      resistanceLevels.push(claudeMA20);
-    }
-
-    // Need at least some S/R levels to work with
-    if (supportLevels.length === 0 && resistanceLevels.length === 0) {
+    // Filters — quality over quantity
+    if (score < 40) {
       skippedStocks++;
-      skippedReasons.push(`${symbol}: No S/R levels found (${dailyBars?.length ?? 0} daily bars)`);
+      skippedReasons.push(`${symbol}: Score ${score} too low (need 40+)`);
+      continue;
+    }
+    if (setup.dailyContext === 'other') {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: No daily context`);
+      continue;
+    }
+    if (setup.trendDirection === 'sideways') {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Flat 20MA`);
+      continue;
+    }
+    // Minimum price $2 — avoid penny stocks with bad spreads
+    if (bars[0].open < 2) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Price $${bars[0].open.toFixed(2)} too low`);
+      continue;
+    }
+    // Minimum gap 5% — need explosive movers
+    if (Math.abs(gapPercent) < 5) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Gap ${gapPercent.toFixed(1)}% too small`);
+      continue;
+    }
+    if (bars.length < 6) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Not enough bars`);
       continue;
     }
 
-    // Previous close is a key reference level
-    const pc = prevClose ?? dailyBars[dailyBars.length - 1]?.close;
+    // Score-weighted risk sizing
+    let riskPercent: number;
+    if (score >= 60) riskPercent = 0.03;       // 3% on high conviction
+    else if (score >= 40) riskPercent = 0.02;   // 2% standard
+    else riskPercent = 0.015;                    // 1.5% on marginal
+    const maxRisk = capital * riskPercent;
 
+    const { ma20: resolvedMA20, ma200: resolvedMA200 } = fillMAs(setup);
+    const has200MA = resolvedMA200 != null && resolvedMA200 > 0;
     const openPrice = bars[0].open;
 
-    // ── Step 2: Check if gap punched through S/R ──
-    // For gap DOWN: check if open is below any support level that prevClose was above
-    // For gap UP: check if open is above any resistance level that prevClose was below
-    let breachedLevels: number[] = [];
-    let stopHuntDirection: 'buy' | 'sell' | null = null;
-
-    if (isGapUp && pc) {
-      // Gap up through resistance — stops above resistance triggered
-      // We'll look to SHORT the reversal (counter-trend)
-      const breached = resistanceLevels.filter(r => pc < r && openPrice > r);
-      if (breached.length > 0) {
-        breachedLevels = breached;
-        stopHuntDirection = 'sell'; // counter-trend: short the reversal
-      }
-    } else if (!isGapUp && pc) {
-      // Gap down through support — stops below support triggered
-      // We'll look to BUY the reversal (counter-trend)
-      const breached = supportLevels.filter(s => pc > s && openPrice < s);
-      if (breached.length > 0) {
-        breachedLevels = breached;
-        stopHuntDirection = 'buy'; // counter-trend: buy the reversal
-      }
+    let directionConfirmed = true;
+    if (has200MA) {
+      if (isGapUp && openPrice < resolvedMA200!) directionConfirmed = false;
+      if (!isGapUp && openPrice > resolvedMA200!) directionConfirmed = false;
     }
 
-    if (stopHuntDirection === null || breachedLevels.length === 0) {
-      skippedStocks++;
-      skippedReasons.push(
-        `${symbol}: Gap didn't punch through any S/R level (${supportLevels.length} supports, ${resistanceLevels.length} resistances found)`,
-      );
-      continue;
-    }
+    // Intraday 20MA (proper 20-period)
+    const closes = bars.map(b => b.close);
+    const intraday20MA: (number | null)[] = closes.map((_, i) => sma(closes, i, 20));
 
-    // The nearest breached level is our primary target (price should snap back to it)
-    const primaryTarget = stopHuntDirection === 'buy'
-      ? Math.min(...breachedLevels)  // for longs, nearest support above
-      : Math.max(...breachedLevels); // for shorts, nearest resistance below
+    // ── ENTRY METHODS — extended 2-hour window ──
+    const searchLimit = Math.min(bars.length, p.entryWindowBars);
 
-    // ── Step 3: Wait for stop cascade to exhaust ──
-    // Track the extreme price during the wait period
-    let extremePrice = openPrice;
-    for (let i = 0; i < Math.min(WAIT_BARS, bars.length); i++) {
-      if (stopHuntDirection === 'buy') {
-        // Gap down — track lowest low (extreme of stop run)
-        extremePrice = Math.min(extremePrice, bars[i].low);
-      } else {
-        // Gap up — track highest high (extreme of stop run)
-        extremePrice = Math.max(extremePrice, bars[i].high);
-      }
-    }
-
-    // ── Step 4: Look for reversal bar ──
     let entryPrice: number | null = null;
     let stopLevel: number | null = null;
     let entryBarIndex = -1;
+    let entryMethodUsed = '';
 
-    for (let i = WAIT_BARS; i < bars.length - 1; i++) {
-      const bar = bars[i];
-
-      // Update extreme if price is still making new extremes (cascade ongoing)
-      if (stopHuntDirection === 'buy') {
-        extremePrice = Math.min(extremePrice, bar.low);
-      } else {
-        extremePrice = Math.max(extremePrice, bar.high);
+    // METHOD 1: ORB
+    const orbBar = bars[0];
+    const orbRangePct = (orbBar.high - orbBar.low) / orbBar.open * 100;
+    if (orbRangePct <= 3) {
+      const orbEntry = isGapUp ? orbBar.high : orbBar.low;
+      const orbStop = isGapUp ? orbBar.low : orbBar.high;
+      for (let i = 1; i < Math.min(searchLimit, 4); i++) {
+        if (isGapUp && bars[i].high >= orbEntry) {
+          entryPrice = orbEntry; stopLevel = orbStop;
+          entryBarIndex = i; entryMethodUsed = 'ORB'; break;
+        }
+        if (!isGapUp && bars[i].low <= orbEntry) {
+          entryPrice = orbEntry; stopLevel = orbStop;
+          entryBarIndex = i; entryMethodUsed = 'ORB'; break;
+        }
       }
+    }
 
-      if (stopHuntDirection === 'buy') {
-        // Looking for a bottoming reversal bar:
-        // - Has a bottoming tail (lower wick > 50% of range), OR
-        // - Closes in upper half of range (buyers stepping in), OR
-        // - Is a doji near the lows
-        const range = bar.high - bar.low;
-        if (range <= 0) continue;
-        const lowerWick = Math.min(bar.open, bar.close) - bar.low;
-        const closesUpperHalf = bar.close > (bar.high + bar.low) / 2;
-        const hasRejection = lowerWick / range > p.rejectionThreshold || closesUpperHalf;
-
-        if (hasRejection) {
-          // Entry above the reversal bar's high
-          // Check if next bar triggers entry
-          const nextBar = bars[i + 1];
-          if (nextBar.high >= bar.high) {
-            entryPrice = bar.high;
-            stopLevel = extremePrice * (1 - STOP_BUFFER);
-            entryBarIndex = i + 1;
-            break;
+    // METHOD 2: 1-2-3 Pattern
+    if (entryPrice === null) {
+      for (let i = 0; i < searchLimit - 2; i++) {
+        const ig = bars[i], re = bars[i + 1], tr = bars[i + 2];
+        if (isGapUp && ig.close > ig.open && isMomentumBar(ig) && (isDoji(re) || hasBottomingTail(re))) {
+          if (tr.high >= re.high) {
+            entryPrice = re.high; stopLevel = re.low;
+            entryBarIndex = i + 2; entryMethodUsed = '1-2-3'; break;
           }
         }
-      } else {
-        // Looking for a topping reversal bar (for shorts)
-        const range = bar.high - bar.low;
-        if (range <= 0) continue;
-        const upperWick = bar.high - Math.max(bar.open, bar.close);
-        const closesLowerHalf = bar.close < (bar.high + bar.low) / 2;
-        const hasRejection = upperWick / range > p.rejectionThreshold || closesLowerHalf;
+        if (!isGapUp && ig.close < ig.open && isMomentumBar(ig) && (isDoji(re) || hasToppingTail(re))) {
+          if (tr.low <= re.low) {
+            entryPrice = re.low; stopLevel = re.high;
+            entryBarIndex = i + 2; entryMethodUsed = '1-2-3'; break;
+          }
+        }
+      }
+    }
 
-        if (hasRejection) {
-          const nextBar = bars[i + 1];
-          if (nextBar.low <= bar.low) {
-            entryPrice = bar.low;
-            stopLevel = extremePrice * (1 + STOP_BUFFER);
-            entryBarIndex = i + 1;
-            break;
+    // METHOD 3: 20MA Retracement (extended window)
+    if (entryPrice === null) {
+      for (let i = 4; i < searchLimit; i++) {
+        const bar = bars[i], ma = intraday20MA[i];
+        if (ma === null) continue;
+        if (isGapUp) {
+          if (bar.low <= ma * 1.003 && bar.close > ma && (hasBottomingTail(bar) || isDoji(bar))) {
+            entryPrice = bar.close; stopLevel = bar.low;
+            entryBarIndex = i; entryMethodUsed = '20MA Retrace'; break;
+          }
+        } else {
+          if (bar.high >= ma * 0.997 && bar.close < ma && (hasToppingTail(bar) || isDoji(bar))) {
+            entryPrice = bar.close; stopLevel = bar.high;
+            entryBarIndex = i; entryMethodUsed = '20MA Retrace'; break;
+          }
+        }
+      }
+    }
+
+    // METHOD 4: Base breakout into 20MA
+    if (entryPrice === null) {
+      for (let i = 3; i < searchLimit; i++) {
+        const ma = intraday20MA[i];
+        if (ma === null || i + 1 >= bars.length) continue;
+        const prevBars = bars.slice(Math.max(0, i - 2), i + 1);
+        const baseHigh = Math.max(...prevBars.map(b => b.high));
+        const baseLow = Math.min(...prevBars.map(b => b.low));
+        if ((baseHigh - baseLow) / baseLow * 100 < 2) {
+          const next = bars[i + 1];
+          if (isGapUp && Math.abs(baseLow - ma) / ma < 0.01 && next.high > baseHigh) {
+            entryPrice = baseHigh; stopLevel = baseLow;
+            entryBarIndex = i + 1; entryMethodUsed = 'Base Breakout'; break;
+          }
+          if (!isGapUp && Math.abs(baseHigh - ma) / ma < 0.01 && next.low < baseLow) {
+            entryPrice = baseLow; stopLevel = baseHigh;
+            entryBarIndex = i + 1; entryMethodUsed = 'Base Breakout'; break;
           }
         }
       }
@@ -757,111 +881,144 @@ export function simulateClaude(
 
     if (entryPrice === null || stopLevel === null) {
       skippedStocks++;
-      skippedReasons.push(`${symbol}: No reversal bar found after stop cascade`);
+      skippedReasons.push(`${symbol}: No entry in 2-hour window`);
       continue;
     }
 
     const riskPerShare = Math.abs(entryPrice - stopLevel);
     if (riskPerShare <= 0) {
       skippedStocks++;
-      skippedReasons.push(`${symbol}: Zero risk on entry`);
+      skippedReasons.push(`${symbol}: Zero risk`);
       continue;
     }
 
-    // ── Step 5: Manage the trade ──
-    // Target 1: breached S/R level
-    // Target 2: previous close (full gap fill)
-    const secondaryTarget = pc ?? primaryTarget;
+    // Position sizing based on risk
+    let shares = Math.floor(maxRisk / riskPerShare);
+    if (shares <= 0) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Stop too wide for risk budget`);
+      continue;
+    }
+
+    // ── TRADE MANAGEMENT — full day with partial profits ──
     let exitPrice: number | null = null;
-    let exitReason: SimulatedTrade['exitReason'] = 'end_of_hour';
+    let exitReason: SimulatedTrade['exitReason'] = 'end_of_day';
     let trailingStop = stopLevel;
-    let hitTarget1 = false;
+    let trailingActive = false;
+    let tightTrailActive = false;
+    let barsSinceTrailUpdate = 0;
+    let partialTaken = false;
+    let remainingShares = shares;
+
+    let partialPnl = 0;
 
     for (let i = entryBarIndex; i < bars.length; i++) {
       const bar = bars[i];
 
-      // Check stop loss / trailing stop
-      if (stopHuntDirection === 'buy') {
-        if (bar.low <= trailingStop) {
-          exitPrice = trailingStop;
-          exitReason = hitTarget1 ? 'take_profit' : 'stop_loss';
-          break;
+      // Stop / trailing stop check
+      if (isGapUp && bar.low <= trailingStop) {
+        exitPrice = trailingStop;
+        exitReason = trailingActive ? 'take_profit' : 'stop_loss';
+        break;
+      }
+      if (!isGapUp && bar.high >= trailingStop) {
+        exitPrice = trailingStop;
+        exitReason = trailingActive ? 'take_profit' : 'stop_loss';
+        break;
+      }
+
+      // 200MA exit when direction not confirmed
+      if (has200MA && !directionConfirmed) {
+        if (isGapUp && bar.high >= resolvedMA200!) {
+          exitPrice = resolvedMA200!; exitReason = 'take_profit'; break;
         }
-      } else {
-        if (bar.high >= trailingStop) {
-          exitPrice = trailingStop;
-          exitReason = hitTarget1 ? 'take_profit' : 'stop_loss';
-          break;
+        if (!isGapUp && bar.low <= resolvedMA200!) {
+          exitPrice = resolvedMA200!; exitReason = 'take_profit'; break;
         }
       }
 
-      // Check Target 1: breached S/R level
-      if (!hitTarget1) {
-        if (stopHuntDirection === 'buy' && bar.high >= primaryTarget) {
-          hitTarget1 = true;
-          // Move stop to breakeven, let remainder run to target 2
-          trailingStop = entryPrice;
-        }
-        if (stopHuntDirection === 'sell' && bar.low <= primaryTarget) {
-          hitTarget1 = true;
-          trailingStop = entryPrice;
+      const currentPnl = isGapUp ? bar.close - entryPrice : entryPrice - bar.close;
+      const currentRR = currentPnl / riskPerShare;
+
+      // Activate trailing at 1.5R (faster than Emanuel's 2R)
+      if (!trailingActive && currentRR >= p.trailActivateRR) {
+        trailingActive = true;
+        barsSinceTrailUpdate = 0;
+      }
+
+      // Partial profit at 2R — take 50%, trail the rest
+      if (!partialTaken && currentRR >= p.partialProfitRR) {
+        const partialShares = Math.floor(remainingShares * (p.partialProfitPercent / 100));
+        if (partialShares > 0) {
+          const mult = isGapUp ? 1 : -1;
+          partialPnl += (bar.close - entryPrice) * mult * partialShares;
+          remainingShares -= partialShares;
+          partialTaken = true;
         }
       }
 
-      // Check Target 2: previous close (full gap fill)
-      if (hitTarget1) {
-        if (stopHuntDirection === 'buy' && bar.high >= secondaryTarget) {
-          exitPrice = secondaryTarget;
-          exitReason = 'take_profit';
-          break;
-        }
-        if (stopHuntDirection === 'sell' && bar.low <= secondaryTarget) {
-          exitPrice = secondaryTarget;
-          exitReason = 'take_profit';
-          break;
-        }
+      // Tighten trail at 4R
+      if (trailingActive && !tightTrailActive && currentRR >= 4) {
+        tightTrailActive = true;
+        barsSinceTrailUpdate = 0;
+      }
 
-        // Bar-by-bar trail after target 1
-        if (stopHuntDirection === 'buy') {
-          trailingStop = Math.max(trailingStop, bar.low);
-        } else {
-          trailingStop = Math.min(trailingStop, bar.high);
+      // EOD tightening — 1-bar trail in last 30 min regardless
+      const isEOD = i >= p.eodTightenBar;
+      if (isEOD && !tightTrailActive) {
+        tightTrailActive = true;
+        barsSinceTrailUpdate = 0;
+      }
+
+      // Update trailing stop
+      if (trailingActive) {
+        barsSinceTrailUpdate++;
+        const interval = tightTrailActive ? 1 : 3;
+        if (barsSinceTrailUpdate >= interval) {
+          barsSinceTrailUpdate = 0;
+          if (isGapUp) {
+            if (bar.low > trailingStop) trailingStop = bar.low;
+          } else {
+            if (bar.high < trailingStop) trailingStop = bar.high;
+          }
         }
       }
     }
 
-    // End of hour exit
+    // End of day
     if (exitPrice === null) {
       exitPrice = bars[bars.length - 1].close;
-      exitReason = 'end_of_hour';
+      exitReason = 'end_of_day';
     }
 
-    // ── Calculate P/L ──
-    const shares = Math.floor(capitalPerStock / entryPrice);
-    if (shares <= 0) continue;
-    const multiplier = stopHuntDirection === 'buy' ? 1 : -1;
-    const pnlPerShare = (exitPrice - entryPrice) * multiplier;
-    const pnlPercent = (pnlPerShare / entryPrice) * 100;
-    const pnl = pnlPerShare * shares;
+    // Calculate P/L including partial profit
+    const multiplier = isGapUp ? 1 : -1;
+    const remainingPnl = (exitPrice - entryPrice) * multiplier * remainingShares;
+    const totalTradePnl = partialPnl + remainingPnl;
+    const pnlPercent = ((exitPrice - entryPrice) * multiplier / entryPrice) * 100;
 
-    equity += pnl;
+    equity += totalTradePnl;
     maxEquity = Math.max(maxEquity, equity);
     const drawdown = ((maxEquity - equity) / maxEquity) * 100;
     maxDrawdown = Math.max(maxDrawdown, drawdown);
+
+    if (totalTradePnl < 0) dailyLoss += Math.abs(totalTradePnl);
 
     trades.push({
       date: bars[0].timestamp,
       symbol,
       entryPrice,
       exitPrice,
-      pnl,
+      pnl: totalTradePnl,
       pnlPercent,
-      side: stopHuntDirection,
+      side,
       exitReason,
       shares,
       gapPercent,
       equityAfter: equity,
     });
+
+    tradesThisDay++;
   }
 
   const wins = trades.filter((t) => t.pnl > 0).length;
@@ -874,7 +1031,7 @@ export function simulateClaude(
     winRate,
     maxDrawdown,
     finalEquity: equity,
-    entryMethod: 'Stop Gap Reversal (counter-trend after S/R breach → reversal bar → target S/R fill)',
+    entryMethod: 'Claude Enhanced: Up to 3 trades/day, score-weighted sizing, 2hr entry, partial profits at 2R, EOD tightening',
     skippedStocks,
     skippedReasons,
   };
@@ -1112,5 +1269,354 @@ export function simulateGeneric(
     entryMethod: `Fixed SL ${stopLoss}% / TP ${takeProfit}%`,
     skippedStocks: 0,
     skippedReasons: [],
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PROREALALGOS ENGINE — Quick Flip Scalper
+// ═══════════════════════════════════════════════════════════════
+//
+// Carl's "ONE CANDLE" strategy:
+// 1. Box first 15-min candle (= first 3 x 5-min bars)
+// 2. Confirm manipulation: box range >= 25% of daily ATR(14)
+// 3. Look for reversal candle OUTSIDE box on 5-min within 90 min:
+//    - Green open → bearish reversal ABOVE box (inverted hammer / bearish engulfing)
+//    - Red open → bullish reversal BELOW box (hammer / bullish engulfing)
+// 4. Entry on break of reversal candle, stop at extreme
+// 5. Target: opposite side of the box
+
+/** Check if a bar is a hammer (long lower wick, body in upper third). */
+function isHammer(bar: BarData): boolean {
+  const range = bar.high - bar.low;
+  if (range <= 0) return false;
+  const lowerWick = Math.min(bar.open, bar.close) - bar.low;
+  const body = Math.abs(bar.close - bar.open);
+  return lowerWick / range >= 0.5 && body / range <= 0.35;
+}
+
+/** Check if a bar is an inverted hammer (long upper wick, body in lower third). */
+function isInvertedHammer(bar: BarData): boolean {
+  const range = bar.high - bar.low;
+  if (range <= 0) return false;
+  const upperWick = bar.high - Math.max(bar.open, bar.close);
+  const body = Math.abs(bar.close - bar.open);
+  return upperWick / range >= 0.5 && body / range <= 0.35;
+}
+
+/** Check if bar B is a bullish engulfing of bar A (green B fully engulfs red A). */
+function isBullishEngulfing(a: BarData, b: BarData): boolean {
+  const aRed = a.close < a.open;
+  const bGreen = b.close > b.open;
+  return aRed && bGreen && b.close > a.open && b.open <= a.close;
+}
+
+/** Check if bar B is a bearish engulfing of bar A (red B fully engulfs green A). */
+function isBearishEngulfing(a: BarData, b: BarData): boolean {
+  const aGreen = a.close > a.open;
+  const bRed = b.close < b.open;
+  return aGreen && bRed && b.close < a.open && b.open >= a.close;
+}
+
+export function simulateProRealAlgos(
+  setups: StockSetup[],
+  capital: number,
+  longOnly = false,
+): SimResult {
+  let equity = capital;
+  let maxEquity = equity;
+  let maxDrawdown = 0;
+  const trades: SimulatedTrade[] = [];
+  let skippedStocks = 0;
+  const skippedReasons: string[] = [];
+
+  // Risk 2% of capital per trade — Carl trades ONE setup per day
+  const RISK_PERCENT = 0.02;
+  const maxRisk = capital * RISK_PERCENT;
+
+  // 90 min = 18 x 5-min bars from open
+  const MAX_ENTRY_BARS = 18;
+
+  // ── Pre-score setups by manipulation candle strength ──
+  // Carl picks the single best manipulation candle. Sort by box range / ATR ratio.
+  const scored: Array<{ setup: StockSetup; manipScore: number }> = [];
+  for (const setup of setups) {
+    const dailyBars = setup.dailyBars;
+    const bars = setup.bars.filter(b => (b.high - b.low) > 0.001 || b.volume > 1000);
+    let marketBars = bars;
+    if (bars.length > 3 && bars[0].high - bars[0].low < 0.01) {
+      const firstReal = bars.findIndex(b => b.high - b.low > 0.01);
+      if (firstReal > 0) marketBars = bars.slice(firstReal);
+    }
+    if (marketBars.length < 6) continue;
+
+    const orbBars = marketBars.slice(0, 3);
+    const boxRange = Math.max(...orbBars.map(b => b.high)) - Math.min(...orbBars.map(b => b.low));
+    if (boxRange <= 0) continue;
+
+    let atr14: number | null = null;
+    if (dailyBars && dailyBars.length >= 14) {
+      atr14 = dailyBars.slice(-14).reduce((s, b) => s + (b.high - b.low), 0) / 14;
+    }
+    // Manipulation score = box range as % of ATR (higher = stronger manipulation)
+    const manipScore = atr14 ? boxRange / atr14 : 0;
+    if (manipScore >= 0.25) { // Must pass 25% ATR threshold
+      scored.push({ setup, manipScore });
+    }
+  }
+
+  // Sort by strongest manipulation candle first — Carl picks the BEST one
+  scored.sort((a, b) => b.manipScore - a.manipScore);
+
+  let traded = false;
+
+  for (const { setup } of scored) {
+    // ONE trade per day — Carl: "I will trade this today on an individual stock"
+    if (traded) {
+      skippedStocks++;
+      skippedReasons.push(`${setup.symbol}: Already traded today (one per day)`);
+      continue;
+    }
+    const { gapPercent, symbol, dailyBars } = setup;
+
+    // Filter to market hours only (9:30 ET = 14:30 UTC, or 13:30 UTC during DST)
+    // Remove pre-market bars that have tiny/zero ranges (single prints)
+    const bars = setup.bars.filter(b => {
+      const range = b.high - b.low;
+      // Keep bars with real trading range, or if bar time is clearly in market hours
+      // Pre-market prints typically have open=high=low=close (range 0) or very small range
+      return range > 0.001 || b.volume > 1000;
+    });
+
+    // If first bar still looks like pre-market (zero range), try skipping to first real bar
+    let marketBars = bars;
+    if (bars.length > 3 && bars[0].high - bars[0].low < 0.01) {
+      // Find first bar with meaningful range
+      const firstReal = bars.findIndex(b => b.high - b.low > 0.01);
+      if (firstReal > 0) {
+        marketBars = bars.slice(firstReal);
+      }
+    }
+
+    if (marketBars.length < 6) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Not enough market-hours bars`);
+      continue;
+    }
+
+    // ── STEP 1: Box the opening range (first 3 x 5-min bars = 15 min) ──
+    const orbBars = marketBars.slice(0, 3);
+    const boxHigh = Math.max(...orbBars.map(b => b.high));
+    const boxLow = Math.min(...orbBars.map(b => b.low));
+    const boxRange = boxHigh - boxLow;
+
+    if (boxRange <= 0) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Zero opening range`);
+      continue;
+    }
+
+    // Opening candle direction (aggregate of first 3 bars)
+    const openPrice = orbBars[0].open;
+    const closeAfter15min = orbBars[2].close;
+    const isGreenOpen = closeAfter15min > openPrice;
+
+    // Long only: green open = short trade, so skip it
+    if (longOnly && isGreenOpen) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Green open → would be short, skipping (long only)`);
+      continue;
+    }
+
+    // ── STEP 2: Confirm manipulation candle (range >= 25% of ATR14) ──
+    let atr14: number | null = null;
+    if (dailyBars && dailyBars.length >= 14) {
+      const last14 = dailyBars.slice(-14);
+      const trueRanges = last14.map(b => b.high - b.low);
+      atr14 = trueRanges.reduce((s, r) => s + r, 0) / 14;
+    }
+
+    if (atr14 !== null) {
+      const threshold = atr14 * 0.25;
+      if (boxRange < threshold) {
+        skippedStocks++;
+        skippedReasons.push(`${symbol}: Opening range ${boxRange.toFixed(2)} < 25% ATR (${threshold.toFixed(2)}) — not a manipulation candle`);
+        continue;
+      }
+    }
+    // If no ATR data, still allow (benefit of the doubt)
+
+    // ── STEP 3: Look for reversal candle OUTSIDE the box ──
+    const searchLimit = Math.min(marketBars.length, MAX_ENTRY_BARS);
+    let entryPrice: number | null = null;
+    let stopLevel: number | null = null;
+    let entryBarIndex = -1;
+    let tradeSide: 'buy' | 'sell' = 'buy';
+    let targetPrice: number;
+
+    if (isGreenOpen) {
+      // Green open → look for BEARISH reversal ABOVE box
+      targetPrice = boxLow; // target opposite side
+
+      for (let i = 3; i < searchLimit - 1; i++) {
+        const bar = marketBars[i];
+        const prevBar = marketBars[i - 1];
+
+        // Must be ABOVE the box
+        if (bar.low <= boxHigh) continue;
+
+        // Check for inverted hammer
+        if (isInvertedHammer(bar)) {
+          const nextBar = marketBars[i + 1];
+          if (nextBar.low <= bar.low) {
+            entryPrice = bar.low;
+            stopLevel = bar.high;
+            entryBarIndex = i + 1;
+            tradeSide = 'sell';
+            break;
+          }
+        }
+
+        // Check for bearish engulfing
+        if (i > 0 && isBearishEngulfing(prevBar, bar)) {
+          entryPrice = prevBar.low;
+          stopLevel = bar.high;
+          entryBarIndex = i;
+          tradeSide = 'sell';
+          break;
+        }
+      }
+    } else {
+      // Red open → look for BULLISH reversal BELOW box
+      targetPrice = boxHigh; // target opposite side
+
+      for (let i = 3; i < searchLimit - 1; i++) {
+        const bar = marketBars[i];
+        const prevBar = marketBars[i - 1];
+
+        // Must be BELOW the box
+        if (bar.high >= boxLow) continue;
+
+        // Check for hammer
+        if (isHammer(bar)) {
+          const nextBar = marketBars[i + 1];
+          if (nextBar.high >= bar.high) {
+            entryPrice = bar.high;
+            stopLevel = bar.low;
+            entryBarIndex = i + 1;
+            tradeSide = 'buy';
+            break;
+          }
+        }
+
+        // Check for bullish engulfing
+        if (i > 0 && isBullishEngulfing(prevBar, bar)) {
+          entryPrice = prevBar.high;
+          stopLevel = bar.low;
+          entryBarIndex = i;
+          tradeSide = 'buy';
+          break;
+        }
+      }
+    }
+
+    if (entryPrice === null || stopLevel === null) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: No reversal candle outside box within 90 min`);
+      continue;
+    }
+
+    const riskPerShare = Math.abs(entryPrice - stopLevel);
+    if (riskPerShare <= 0) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Zero risk on entry`);
+      continue;
+    }
+
+    // Size based on risk
+    const shares = Math.floor(maxRisk / riskPerShare);
+    if (shares <= 0) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Stop too wide for risk budget`);
+      continue;
+    }
+
+    // ── TRADE MANAGEMENT ──
+    let exitPrice: number | null = null;
+    let exitReason: SimulatedTrade['exitReason'] = 'end_of_day';
+
+    for (let i = entryBarIndex; i < marketBars.length; i++) {
+      const bar = marketBars[i];
+
+      // Check stop loss
+      if (tradeSide === 'buy' && bar.low <= stopLevel) {
+        exitPrice = stopLevel;
+        exitReason = 'stop_loss';
+        break;
+      }
+      if (tradeSide === 'sell' && bar.high >= stopLevel) {
+        exitPrice = stopLevel;
+        exitReason = 'stop_loss';
+        break;
+      }
+
+      // Check target (opposite side of box)
+      if (tradeSide === 'buy' && bar.high >= targetPrice) {
+        exitPrice = targetPrice;
+        exitReason = 'take_profit';
+        break;
+      }
+      if (tradeSide === 'sell' && bar.low <= targetPrice) {
+        exitPrice = targetPrice;
+        exitReason = 'take_profit';
+        break;
+      }
+    }
+
+    if (exitPrice === null) {
+      exitPrice = marketBars[marketBars.length - 1].close;
+      exitReason = 'end_of_day';
+    }
+
+    // P/L
+    const multiplier = tradeSide === 'buy' ? 1 : -1;
+    const pnlPerShare = (exitPrice - entryPrice) * multiplier;
+    const pnlPercent = (pnlPerShare / entryPrice) * 100;
+    const pnl = pnlPerShare * shares;
+
+    equity += pnl;
+    maxEquity = Math.max(maxEquity, equity);
+    const drawdown = ((maxEquity - equity) / maxEquity) * 100;
+    maxDrawdown = Math.max(maxDrawdown, drawdown);
+
+    trades.push({
+      date: marketBars[0].timestamp,
+      symbol,
+      entryPrice,
+      exitPrice,
+      pnl,
+      pnlPercent,
+      side: tradeSide,
+      exitReason,
+      shares,
+      gapPercent,
+      equityAfter: equity,
+    });
+
+    traded = true; // One per day
+  }
+
+  const wins = trades.filter((t) => t.pnl > 0).length;
+  const winRate = trades.length > 0 ? (wins / trades.length) * 100 : 0;
+  const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
+
+  return {
+    trades,
+    totalPnl,
+    winRate,
+    maxDrawdown,
+    finalEquity: equity,
+    entryMethod: 'Quick Flip Scalper: Box 15-min open → confirm manipulation (25% ATR) → reversal candle outside box → target opposite side',
+    skippedStocks,
+    skippedReasons,
   };
 }

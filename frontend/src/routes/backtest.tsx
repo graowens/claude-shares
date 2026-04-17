@@ -11,11 +11,14 @@ import {
   runBacktestFromGaps,
   optimiseClaude,
   getEmanuelPicks,
+  getClaudePicks,
+  getProRealAlgosPicks,
   type BacktestParams,
   type GapScanResult,
   type BacktestFromGapsResult,
   type ClaudeOptimiseResult,
   type EmanuelPicksResult,
+  type ClaudePicksResult,
 } from "@/lib/api";
 import { cn, formatCurrency, formatDate, plClass, exchangeColor } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -143,15 +147,36 @@ function BacktestPage() {
   const [stopLoss, setStopLoss] = useState("1");
   const [takeProfit, setTakeProfit] = useState("2");
   const [startingCapital, setStartingCapital] = useState("100");
+  const [dailyBudget, setDailyBudget] = useState("1000");
+  const [lookbackDays, setLookbackDays] = useState("10");
+  const [longOnly, setLongOnly] = useState(true);
   const [scanResults, setScanResults] = useState<GapScanResult[]>([]);
   const [backtestResult, setBacktestResult] = useState<BacktestFromGapsResult | null>(null);
   const [claudeResult, setClaudeResult] = useState<ClaudeOptimiseResult | null>(null);
   const [emanuelPicks, setEmanuelPicks] = useState<EmanuelPicksResult | null>(null);
+  const [claudePicks, setClaudePicks] = useState<ClaudePicksResult | null>(null);
+  const [proRealPicks, setProRealPicks] = useState<ClaudePicksResult | null>(null);
 
-  // Emanuel top picks (2-week lookback)
+  // Emanuel top picks
   const emanuelMut = useMutation({
-    mutationFn: () => getEmanuelPicks(scanDate, Number(startingCapital) || 1000),
+    mutationFn: () => getEmanuelPicks(scanDate, Number(dailyBudget) || 1000, Number(lookbackDays) || 10, longOnly),
     onSuccess: (data) => setEmanuelPicks(data),
+  });
+
+  // Claude top picks with running balance + fees
+  const claudeMut2 = useMutation({
+    mutationFn: () => getClaudePicks(scanDate, Number(dailyBudget) || 1000, Number(lookbackDays) || 10, longOnly),
+    onSuccess: (data) => setClaudePicks(data),
+  });
+
+  // ProRealAlgos top picks
+  const [proRealSymbols, setProRealSymbols] = useState("QQQ, SPY, NVDA, TSLA, AAPL, MSFT, AMZN, META, GOOG, AMD");
+  const proRealMut = useMutation({
+    mutationFn: () => {
+      const symbols = proRealSymbols.split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
+      return getProRealAlgosPicks(scanDate, Number(dailyBudget) || 1000, Number(lookbackDays) || 10, symbols, longOnly);
+    },
+    onSuccess: (data) => setProRealPicks(data),
   });
 
   // Claude optimiser
@@ -451,14 +476,59 @@ function BacktestPage() {
         </CardContent>
       </Card>
 
-      {/* Emanuel's Top Picks — 2 Week Lookback */}
+      {/* Strategy Lookback Controls */}
+      {scanDate && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Daily Budget</Label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                  <Input
+                    type="number"
+                    step="100"
+                    min="100"
+                    className="w-28 pl-6"
+                    value={dailyBudget}
+                    onChange={(e) => setDailyBudget(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Lookback Days</Label>
+                <Input
+                  type="number"
+                  step="1"
+                  min="1"
+                  max="60"
+                  className="w-24"
+                  value={lookbackDays}
+                  onChange={(e) => setLookbackDays(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center gap-2 pb-0.5">
+                <Switch
+                  checked={longOnly}
+                  onCheckedChange={setLongOnly}
+                />
+                <Label className="text-xs text-muted-foreground">
+                  {longOnly ? "Long Only (buy gaps up)" : "Long & Short (buy + sell)"}
+                </Label>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Emanuel's Top Picks */}
       {scanDate && (
         <Card className="border-amber-500/30">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Star className="h-5 w-5 text-amber-400" />
-                Emanuel's Top 3 Picks — 2 Week Lookback
+                Emanuel's Top 3 Picks — {lookbackDays} Day Lookback
               </CardTitle>
               <Button
                 onClick={() => emanuelMut.mutate()}
@@ -474,7 +544,7 @@ function BacktestPage() {
               </Button>
             </div>
             <p className="text-sm text-muted-foreground">
-              Goes back 10 trading days before {scanDate || "the selected date"}, picks the top 3 stocks Emanuel would choose each day, and shows the P/L outcome
+              Goes back {lookbackDays} trading days from {scanDate}, picks the top 3 stocks Emanuel would choose each day (${dailyBudget} capital)
             </p>
           </CardHeader>
           {emanuelMut.isError && (
@@ -578,15 +648,19 @@ function BacktestPage() {
                       <TableBody>
                         {day.picks.map((pick, idx) => (
                           <TableRow key={pick.symbol} className={cn(
-                            pick.trade
-                              ? pick.trade.pnl > 0
-                                ? "bg-emerald-500/5"
-                                : pick.trade.pnl < 0
-                                  ? "bg-red-500/5"
-                                  : ""
-                              : "opacity-50"
+                            pick.isEmanuelPick
+                              ? pick.trade && pick.trade.pnl > 0
+                                ? "bg-emerald-500/10 border-l-2 border-l-amber-400"
+                                : pick.trade && pick.trade.pnl < 0
+                                  ? "bg-red-500/10 border-l-2 border-l-amber-400"
+                                  : "border-l-2 border-l-amber-400"
+                              : "opacity-40"
                           )}>
-                            <TableCell className="font-bold text-muted-foreground">{idx + 1}</TableCell>
+                            <TableCell className="font-bold text-muted-foreground">
+                              {pick.isEmanuelPick ? (
+                                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                              ) : idx + 1}
+                            </TableCell>
                             <TableCell className="font-bold">
                               <a
                                 href={`https://www.tradingview.com/chart/?symbol=${pick.symbol}`}
@@ -639,6 +713,400 @@ function BacktestPage() {
                               </>
                             ) : (
                               <TableCell colSpan={6} className="text-xs text-muted-foreground italic">
+                                {pick.skippedReason || "No trade"}
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              ))}
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      {/* Claude's Top Picks with Running Balance */}
+      {scanDate && (
+        <Card className="border-blue-500/30">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Brain className="h-5 w-5 text-blue-400" />
+                Claude's Strategy — {lookbackDays} Day Lookback
+              </CardTitle>
+              <Button
+                onClick={() => claudeMut2.mutate()}
+                disabled={!scanDate || claudeMut2.isPending}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {claudeMut2.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="mr-2 h-4 w-4" />
+                )}
+                {claudeMut2.isPending ? "Analysing..." : "Run Claude's Picks"}
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Up to 3 trades/day from ${dailyBudget} capital, score-weighted sizing, partial profits at 2R, includes Alpaca fees
+            </p>
+          </CardHeader>
+          {claudeMut2.isError && (
+            <CardContent>
+              <p className="text-sm text-red-400">Failed: {claudeMut2.error.message}</p>
+            </CardContent>
+          )}
+          {claudePicks && (
+            <CardContent className="space-y-4 pt-0">
+              {/* Summary */}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+                <Card className="bg-blue-500/5 border-blue-500/20">
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Net P/L</p>
+                    <p className={cn("text-2xl font-bold", plClass(claudePicks.totals.totalNetPnl))}>
+                      {formatCurrency(claudePicks.totals.totalNetPnl)}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Final Balance</p>
+                    <p className={cn("text-2xl font-bold", claudePicks.totals.finalBalance >= claudePicks.totals.startingCapital ? "text-emerald-400" : "text-red-400")}>
+                      {formatCurrency(claudePicks.totals.finalBalance)}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Win Rate</p>
+                    <p className={cn("text-2xl font-bold", claudePicks.totals.winRate >= 50 ? "text-emerald-400" : "text-red-400")}>
+                      {claudePicks.totals.winRate.toFixed(1)}%
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Total Fees</p>
+                    <p className="text-2xl font-bold text-muted-foreground">
+                      {formatCurrency(claudePicks.totals.totalFees)}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Avg Daily P/L</p>
+                    <p className={cn("text-2xl font-bold", plClass(claudePicks.totals.avgDailyPnl))}>
+                      {formatCurrency(claudePicks.totals.avgDailyPnl)}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Return</p>
+                    <p className={cn("text-2xl font-bold", plClass(claudePicks.totals.totalReturn))}>
+                      {claudePicks.totals.totalReturn >= 0 ? "+" : ""}{claudePicks.totals.totalReturn.toFixed(1)}%
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Per-day cards */}
+              {claudePicks.days.map((day) => (
+                <Card key={day.scanDate} className={cn(
+                  "border-l-4",
+                  day.dayNetPnl > 0 ? "border-l-emerald-500" : day.dayNetPnl < 0 ? "border-l-red-500" : "border-l-zinc-600"
+                )}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <CardTitle className="text-sm font-mono">{day.scanDate}</CardTitle>
+                        <span className="text-xs text-muted-foreground">trades {day.tradingDay}</span>
+                        <Badge variant="outline" className="text-xs">
+                          Start: {formatCurrency(day.startBalance)}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {day.dayTrades > 0 && (
+                          <Badge variant={day.dayWins === day.dayTrades ? "success" : day.dayWins > 0 ? "warning" : "danger"}>
+                            {day.dayWins}/{day.dayTrades} wins
+                          </Badge>
+                        )}
+                        {day.dayFees > 0 && (
+                          <span className="text-xs text-muted-foreground">fees: {formatCurrency(day.dayFees)}</span>
+                        )}
+                        <span className={cn("font-mono font-bold", plClass(day.dayNetPnl))}>
+                          {formatCurrency(day.dayNetPnl)}
+                        </span>
+                        <Badge variant="outline" className="text-xs font-mono">
+                          → {formatCurrency(day.endBalance)}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Symbol</TableHead>
+                          <TableHead>Score</TableHead>
+                          <TableHead>Gap</TableHead>
+                          <TableHead>Side</TableHead>
+                          <TableHead>Shares</TableHead>
+                          <TableHead>Entry</TableHead>
+                          <TableHead>Exit</TableHead>
+                          <TableHead>Gross</TableHead>
+                          <TableHead>Fees</TableHead>
+                          <TableHead>Net P/L</TableHead>
+                          <TableHead>Exit</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {day.picks.map((pick) => (
+                          <TableRow key={pick.symbol} className={cn(
+                            pick.trade
+                              ? pick.trade.netPnl > 0 ? "bg-emerald-500/5" : pick.trade.netPnl < 0 ? "bg-red-500/5" : ""
+                              : "opacity-40"
+                          )}>
+                            <TableCell className="font-bold">
+                              <a
+                                href={`https://www.tradingview.com/chart/?symbol=${pick.symbol}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-400 underline decoration-dotted underline-offset-2 hover:text-blue-300"
+                              >
+                                {pick.symbol}
+                              </a>
+                            </TableCell>
+                            <TableCell>
+                              {pick.score >= 50 ? (
+                                <Badge className="border-transparent bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30 font-bold">
+                                  {pick.score}
+                                </Badge>
+                              ) : pick.score >= 30 ? (
+                                <Badge className="border-transparent bg-yellow-500/20 text-yellow-300 ring-1 ring-yellow-500/30 font-bold">
+                                  {pick.score}
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="font-bold opacity-60">{pick.score}</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={pick.gapPercent >= 0 ? "success" : "danger"} className="font-semibold">
+                                {pick.gapPercent >= 0 ? "+" : ""}{pick.gapPercent.toFixed(1)}%
+                              </Badge>
+                            </TableCell>
+                            {pick.trade ? (
+                              <>
+                                <TableCell>
+                                  <Badge variant={pick.trade.side === "buy" ? "success" : "danger"}>
+                                    {pick.trade.side}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="font-mono text-muted-foreground">{pick.trade.shares}</TableCell>
+                                <TableCell className="font-mono">{formatCurrency(pick.trade.entryPrice)}</TableCell>
+                                <TableCell className="font-mono">{formatCurrency(pick.trade.exitPrice)}</TableCell>
+                                <TableCell className={cn("font-mono", plClass(pick.trade.grossPnl))}>
+                                  {formatCurrency(pick.trade.grossPnl)}
+                                </TableCell>
+                                <TableCell className="font-mono text-muted-foreground">
+                                  -{formatCurrency(pick.trade.fees)}
+                                </TableCell>
+                                <TableCell className={cn("font-mono font-semibold", plClass(pick.trade.netPnl))}>
+                                  {formatCurrency(pick.trade.netPnl)}
+                                </TableCell>
+                                <TableCell>{exitReasonBadge(pick.trade.exitReason)}</TableCell>
+                              </>
+                            ) : (
+                              <TableCell colSpan={8} className="text-xs text-muted-foreground italic">
+                                {pick.skippedReason || "No trade"}
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              ))}
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      {/* ProRealAlgos Quick Flip Scalper */}
+      {scanDate && (
+        <Card className="border-purple-500/30">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Zap className="h-5 w-5 text-purple-400" />
+                ProRealAlgos Quick Flip — {lookbackDays} Day Lookback
+              </CardTitle>
+              <Button
+                onClick={() => proRealMut.mutate()}
+                disabled={!scanDate || proRealMut.isPending}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                {proRealMut.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="mr-2 h-4 w-4" />
+                )}
+                {proRealMut.isPending ? "Analysing..." : "Run ProRealAlgos"}
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Box 15-min open, confirm manipulation candle (25% ATR), reversal outside box → target opposite side (${dailyBudget} capital)
+            </p>
+            <div className="mt-2 space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Symbols (comma-separated)</Label>
+              <Input
+                placeholder="QQQ, SPY, NVDA, TSLA, AAPL"
+                value={proRealSymbols}
+                onChange={(e) => setProRealSymbols(e.target.value)}
+                className="font-mono text-sm"
+              />
+            </div>
+          </CardHeader>
+          {proRealMut.isError && (
+            <CardContent>
+              <p className="text-sm text-red-400">Failed: {proRealMut.error.message}</p>
+            </CardContent>
+          )}
+          {proRealPicks && (
+            <CardContent className="space-y-4 pt-0">
+              {/* Summary */}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+                <Card className="bg-purple-500/5 border-purple-500/20">
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Net P/L</p>
+                    <p className={cn("text-2xl font-bold", plClass(proRealPicks.totals.totalNetPnl))}>
+                      {formatCurrency(proRealPicks.totals.totalNetPnl)}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Final Balance</p>
+                    <p className={cn("text-2xl font-bold", proRealPicks.totals.finalBalance >= proRealPicks.totals.startingCapital ? "text-emerald-400" : "text-red-400")}>
+                      {formatCurrency(proRealPicks.totals.finalBalance)}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Win Rate</p>
+                    <p className={cn("text-2xl font-bold", proRealPicks.totals.winRate >= 50 ? "text-emerald-400" : "text-red-400")}>
+                      {proRealPicks.totals.winRate.toFixed(1)}%
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Total Fees</p>
+                    <p className="text-2xl font-bold text-muted-foreground">{formatCurrency(proRealPicks.totals.totalFees)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Avg Daily P/L</p>
+                    <p className={cn("text-2xl font-bold", plClass(proRealPicks.totals.avgDailyPnl))}>
+                      {formatCurrency(proRealPicks.totals.avgDailyPnl)}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Return</p>
+                    <p className={cn("text-2xl font-bold", plClass(proRealPicks.totals.totalReturn))}>
+                      {proRealPicks.totals.totalReturn >= 0 ? "+" : ""}{proRealPicks.totals.totalReturn.toFixed(1)}%
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Per-day cards */}
+              {proRealPicks.days.map((day) => (
+                <Card key={day.scanDate} className={cn(
+                  "border-l-4",
+                  day.dayNetPnl > 0 ? "border-l-emerald-500" : day.dayNetPnl < 0 ? "border-l-red-500" : "border-l-zinc-600"
+                )}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <CardTitle className="text-sm font-mono">{day.scanDate}</CardTitle>
+                        <span className="text-xs text-muted-foreground">trades {day.tradingDay}</span>
+                        <Badge variant="outline" className="text-xs">Start: {formatCurrency(day.startBalance)}</Badge>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {day.dayTrades > 0 && (
+                          <Badge variant={day.dayWins === day.dayTrades ? "success" : day.dayWins > 0 ? "warning" : "danger"}>
+                            {day.dayWins}/{day.dayTrades} wins
+                          </Badge>
+                        )}
+                        {day.dayFees > 0 && (
+                          <span className="text-xs text-muted-foreground">fees: {formatCurrency(day.dayFees)}</span>
+                        )}
+                        <span className={cn("font-mono font-bold", plClass(day.dayNetPnl))}>
+                          {formatCurrency(day.dayNetPnl)}
+                        </span>
+                        <Badge variant="outline" className="text-xs font-mono">→ {formatCurrency(day.endBalance)}</Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Symbol</TableHead>
+                          <TableHead>Gap</TableHead>
+                          <TableHead>Side</TableHead>
+                          <TableHead>Shares</TableHead>
+                          <TableHead>Entry</TableHead>
+                          <TableHead>Exit</TableHead>
+                          <TableHead>Gross</TableHead>
+                          <TableHead>Fees</TableHead>
+                          <TableHead>Net P/L</TableHead>
+                          <TableHead>Exit</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {day.picks.map((pick) => (
+                          <TableRow key={pick.symbol} className={cn(
+                            pick.trade
+                              ? pick.trade.netPnl > 0 ? "bg-emerald-500/5" : pick.trade.netPnl < 0 ? "bg-red-500/5" : ""
+                              : "opacity-40"
+                          )}>
+                            <TableCell className="font-bold">
+                              <a href={`https://www.tradingview.com/chart/?symbol=${pick.symbol}`}
+                                target="_blank" rel="noopener noreferrer"
+                                className="text-purple-400 underline decoration-dotted underline-offset-2 hover:text-purple-300">
+                                {pick.symbol}
+                              </a>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={pick.gapPercent >= 0 ? "success" : "danger"} className="font-semibold">
+                                {pick.gapPercent >= 0 ? "+" : ""}{pick.gapPercent.toFixed(1)}%
+                              </Badge>
+                            </TableCell>
+                            {pick.trade ? (
+                              <>
+                                <TableCell>
+                                  <Badge variant={pick.trade.side === "buy" ? "success" : "danger"}>{pick.trade.side}</Badge>
+                                </TableCell>
+                                <TableCell className="font-mono text-muted-foreground">{pick.trade.shares}</TableCell>
+                                <TableCell className="font-mono">{formatCurrency(pick.trade.entryPrice)}</TableCell>
+                                <TableCell className="font-mono">{formatCurrency(pick.trade.exitPrice)}</TableCell>
+                                <TableCell className={cn("font-mono", plClass(pick.trade.grossPnl))}>{formatCurrency(pick.trade.grossPnl)}</TableCell>
+                                <TableCell className="font-mono text-muted-foreground">-{formatCurrency(pick.trade.fees)}</TableCell>
+                                <TableCell className={cn("font-mono font-semibold", plClass(pick.trade.netPnl))}>{formatCurrency(pick.trade.netPnl)}</TableCell>
+                                <TableCell>{exitReasonBadge(pick.trade.exitReason)}</TableCell>
+                              </>
+                            ) : (
+                              <TableCell colSpan={8} className="text-xs text-muted-foreground italic">
                                 {pick.skippedReason || "No trade"}
                               </TableCell>
                             )}
@@ -1196,20 +1664,20 @@ function BacktestPage() {
                   </div>
                   <div className="grid gap-4 sm:grid-cols-4">
                     <div>
-                      <p className="text-xs text-muted-foreground">Swing Lookback</p>
-                      <p className="text-xl font-bold">{claudeResult.bestParams.swingLookback} bars</p>
+                      <p className="text-xs text-muted-foreground">Max Trades/Day</p>
+                      <p className="text-xl font-bold">{claudeResult.bestParams.maxTradesPerDay}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Wait Bars (cascade)</p>
-                      <p className="text-xl font-bold">{claudeResult.bestParams.waitBars} bars</p>
+                      <p className="text-xs text-muted-foreground">Entry Window</p>
+                      <p className="text-xl font-bold">{Math.round(claudeResult.bestParams.entryWindowBars * 5 / 60)}hr</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Stop Buffer</p>
-                      <p className="text-xl font-bold">{(claudeResult.bestParams.stopBuffer * 100).toFixed(2)}%</p>
+                      <p className="text-xs text-muted-foreground">Trail Activate</p>
+                      <p className="text-xl font-bold">{claudeResult.bestParams.trailActivateRR}R</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Rejection Threshold</p>
-                      <p className="text-xl font-bold">{(claudeResult.bestParams.rejectionThreshold * 100).toFixed(0)}%</p>
+                      <p className="text-xs text-muted-foreground">Partial Profit</p>
+                      <p className="text-xl font-bold">{claudeResult.bestParams.partialProfitRR}R</p>
                     </div>
                   </div>
                 </CardContent>
@@ -1271,10 +1739,10 @@ function BacktestPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>#</TableHead>
-                          <TableHead>Swing LB</TableHead>
-                          <TableHead>Wait Bars</TableHead>
-                          <TableHead>Stop Buffer</TableHead>
-                          <TableHead>Rejection</TableHead>
+                          <TableHead>Max Trades</TableHead>
+                          <TableHead>Entry Window</TableHead>
+                          <TableHead>Trail At</TableHead>
+                          <TableHead>Partial At</TableHead>
                           <TableHead>Trades</TableHead>
                           <TableHead>W / L</TableHead>
                           <TableHead>Win Rate</TableHead>
@@ -1288,10 +1756,10 @@ function BacktestPage() {
                             className={cn(i === 0 && "bg-blue-500/5 border-l-2 border-l-blue-400")}
                           >
                             <TableCell className="font-bold text-muted-foreground">{i + 1}</TableCell>
-                            <TableCell>{r.params.swingLookback}</TableCell>
-                            <TableCell>{r.params.waitBars}</TableCell>
-                            <TableCell>{(r.params.stopBuffer * 100).toFixed(2)}%</TableCell>
-                            <TableCell>{(r.params.rejectionThreshold * 100).toFixed(0)}%</TableCell>
+                            <TableCell>{r.params.maxTradesPerDay}</TableCell>
+                            <TableCell>{Math.round(r.params.entryWindowBars * 5 / 60)}hr</TableCell>
+                            <TableCell>{r.params.trailActivateRR}R</TableCell>
+                            <TableCell>{r.params.partialProfitRR}R</TableCell>
                             <TableCell>{r.totalTrades}</TableCell>
                             <TableCell className="text-muted-foreground">{r.wins}W / {r.losses}L</TableCell>
                             <TableCell>

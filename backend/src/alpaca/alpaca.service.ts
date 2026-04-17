@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import Alpaca from '@alpacahq/alpaca-trade-api';
 import axios from 'axios';
 import { BarCache } from './entities/bar-cache.entity';
+import { TiingoService } from '../tiingo/tiingo.service';
 
 interface Bar {
   timestamp: string;
@@ -24,6 +25,7 @@ export class AlpacaService implements OnModuleInit {
     private config: ConfigService,
     @InjectRepository(BarCache)
     private readonly barCacheRepo: Repository<BarCache>,
+    private readonly tiingo: TiingoService,
   ) {}
 
   onModuleInit() {
@@ -75,6 +77,12 @@ export class AlpacaService implements OnModuleInit {
     end: string,
     limit = 1000,
   ): Promise<Bar[]> {
+    // Daily bars come from Tiingo (full consolidated tape) when the key is set.
+    // Intraday timeframes stay on Alpaca IEX.
+    if (timeframe === '1Day' && this.tiingo.isEnabled()) {
+      return this.tiingo.getDailyBars(symbol, start, end);
+    }
+
     // Check cache first
     const cached = await this.getCachedBars(symbol, timeframe, start, end);
     if (cached.length > 0) {
@@ -164,6 +172,12 @@ export class AlpacaService implements OnModuleInit {
     start: string,
     end: string,
   ): Promise<Record<string, Bar[]>> {
+    // Tiingo owns daily bars when enabled — it has its own throttled queue and
+    // reads/writes the same bar_cache table.
+    if (this.tiingo.isEnabled()) {
+      return this.tiingo.getMultiDailyBars(symbols, start, end);
+    }
+
     const result: Record<string, Bar[]> = {};
     const timeframe = '1Day';
 
@@ -244,6 +258,19 @@ export class AlpacaService implements OnModuleInit {
       return t >= startMs && t <= endMs;
     });
     if (filtered.length === 0) return [];
+
+    // For intraday bars, check if cache covers the requested window.
+    // If we asked for 9:30-16:00 but only have 9:30-10:30 cached, treat as miss
+    // so we fetch the full day from Alpaca (which will then cache everything).
+    if (timeframe !== '1Day' && filtered.length > 0) {
+      const lastCachedMs = new Date(filtered[filtered.length - 1].barDate).getTime();
+      const requestedSpanMs = endMs - startMs;
+      const cachedSpanMs = lastCachedMs - new Date(filtered[0].barDate).getTime();
+      // If cached span covers less than 50% of requested span, it's a partial cache — refetch
+      if (requestedSpanMs > 0 && cachedSpanMs < requestedSpanMs * 0.5) {
+        return [];
+      }
+    }
 
     return filtered.map((r) => ({
       timestamp: r.barDate,

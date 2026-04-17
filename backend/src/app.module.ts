@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
+import { TiingoModule } from './tiingo/tiingo.module';
 import { AlpacaModule } from './alpaca/alpaca.module';
 import { TradesModule } from './trades/trades.module';
 import { WatchlistModule } from './watchlist/watchlist.module';
@@ -31,6 +32,7 @@ import { GapScannerModule } from './gap-scanner/gap-scanner.module';
       }),
     }),
     ScheduleModule.forRoot(),
+    TiingoModule,
     AlpacaModule,
     TradesModule,
     WatchlistModule,
