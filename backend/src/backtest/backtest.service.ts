@@ -6,7 +6,7 @@ import { AlpacaService } from '../alpaca/alpaca.service';
 import { GapScannerService } from '../gap-scanner/gap-scanner.service';
 import { StrategiesService } from '../strategies/strategies.service';
 import { RunBacktestDto } from './dto/run-backtest.dto';
-import { simulateEmanuel, simulateFabio, simulateClaude, simulateProRealAlgos, simulateGeneric, type ClaudeParams, CLAUDE_DEFAULT_PARAMS, type EmanuelParams, EMANUEL_DEFAULT_PARAMS } from './strategy-engines';
+import { simulateEmanuel, simulateFabio, simulateClaude, simulateProRealAlgos, simulateDumbHunter, simulateGeneric, generateDumbHunterSwingSignals, DUMB_HUNTER_SWING_DEFAULT_PARAMS, type ClaudeParams, CLAUDE_DEFAULT_PARAMS, type EmanuelParams, EMANUEL_DEFAULT_PARAMS, type SimResult, type DumbHunterSwingParams, type DumbHunterSwingSignal } from './strategy-engines';
 
 interface SimulatedTrade {
   date: string;
@@ -16,10 +16,16 @@ interface SimulatedTrade {
   pnl: number;
   pnlPercent: number;
   side: 'buy' | 'sell';
-  exitReason: 'stop_loss' | 'take_profit' | 'end_of_day' | 'end_of_hour';
+  exitReason: 'stop_loss' | 'take_profit' | 'end_of_day' | 'end_of_hour' | 'time_stop' | 'end_of_backtest';
   shares?: number;
   gapPercent?: number;
   equityAfter?: number;
+  // Swing-only optional fields (multi-day holds)
+  entryDate?: string;
+  exitDate?: string;
+  holdDays?: number;
+  stopLevel?: number;
+  targetPrice?: number;
 }
 
 interface BarData {
@@ -365,6 +371,7 @@ export class BacktestService {
       'Fabio': simulateFabio,
       'Claude': simulateClaude,
       'ProRealAlgos': simulateProRealAlgos,
+      'Dumb Hunter': simulateDumbHunter,
     };
 
     for (const [author, defaults] of Object.entries(authorDefaults)) {
@@ -704,11 +711,13 @@ export class BacktestService {
       `Claude optimiser: ${allSetupsByDate.length} dates with usable setups, sweeping params...`,
     );
 
-    // ── Parameter sweep — Claude's tunable params ──
+    // ── Parameter sweep — Claude's blend params ──
+    // The blend engine ignores entry/trail/partial params (those are delegated
+    // to the sub-engines) so the optimiser sweeps the meta-allocator knobs.
     const maxTradesOptions = [1, 2, 3];
-    const trailActivateOptions = [1.5, 2.0, 2.5];
-    const partialProfitRROptions = [1.5, 2.0, 3.0];
-    const entryWindowOptions = [12, 24, 36]; // 1hr, 2hr, 3hr
+    const minConvictionOptions = [1, 2];
+    const convictionBonusOptions = [5, 10, 20];
+    const maxDailyLossOptions = [4, 6, 10]; // %
 
     let bestPnl = -Infinity;
     let bestParams = CLAUDE_DEFAULT_PARAMS;
@@ -724,15 +733,15 @@ export class BacktestService {
     }> = [];
 
     for (const maxTradesPerDay of maxTradesOptions) {
-      for (const trailActivateRR of trailActivateOptions) {
-        for (const partialProfitRR of partialProfitRROptions) {
-          for (const entryWindowBars of entryWindowOptions) {
+      for (const minConviction of minConvictionOptions) {
+        for (const convictionBonus of convictionBonusOptions) {
+          for (const maxDailyLossPercent of maxDailyLossOptions) {
             const params: ClaudeParams = {
               ...CLAUDE_DEFAULT_PARAMS,
               maxTradesPerDay,
-              trailActivateRR,
-              partialProfitRR,
-              entryWindowBars,
+              minConviction,
+              convictionBonus,
+              maxDailyLossPercent,
             };
 
             let totalPnl = 0;
@@ -1205,6 +1214,341 @@ export class BacktestService {
   }
 
   // ═══════════════════════════════════════════════════════════════
+  //  WEEKLY COMPARISON — 10 weeks, Mon–Fri, every strategy, daily budget resets each day
+  // ═══════════════════════════════════════════════════════════════
+
+  async weeklyComparison(
+    endDate: string,
+    dailyBudget: number,
+    weeks = 10,
+  ): Promise<{
+    weeks: Array<{
+      weekStart: string;
+      weekEnd: string;
+      daysTraded: number;
+      strategies: Record<string, { pnl: number; trades: number; wins: number }>;
+    }>;
+    totals: Record<string, { pnl: number; trades: number; wins: number; winRate: number }>;
+  }> {
+    // Find the most recent Friday on or before endDate
+    const endRef = new Date(endDate + 'T12:00:00');
+    const mostRecentFriday = new Date(endRef);
+    while (mostRecentFriday.getDay() !== 5) {
+      mostRecentFriday.setDate(mostRecentFriday.getDate() - 1);
+    }
+
+    // Build week blocks (oldest → newest)
+    type WeekBlock = { mon: string; fri: string; days: string[] };
+    const weekBlocks: WeekBlock[] = [];
+    for (let w = weeks - 1; w >= 0; w--) {
+      const friday = new Date(mostRecentFriday);
+      friday.setDate(friday.getDate() - w * 7);
+      const monday = new Date(friday);
+      monday.setDate(monday.getDate() - 4);
+      const monStr = monday.toISOString().split('T')[0];
+      const friStr = friday.toISOString().split('T')[0];
+      weekBlocks.push({ mon: monStr, fri: friStr, days: this.getTradingDays(monStr, friStr) });
+    }
+
+    const strategyNames = ['Emanuel', 'Claude', 'Dumb Hunter', 'ProRealAlgos', 'Fabio'];
+    const makeEmpty = () => Object.fromEntries(
+      strategyNames.map((n) => [n, { pnl: 0, trades: 0, wins: 0 }]),
+    ) as Record<string, { pnl: number; trades: number; wins: number }>;
+
+    const weeklyResults = weekBlocks.map((wb) => ({
+      weekStart: wb.mon,
+      weekEnd: wb.fri,
+      daysTraded: 0,
+      strategies: makeEmpty(),
+    }));
+
+    const emanuelParams = await this.loadEmanuelParams();
+
+    this.logger.log(
+      `Weekly comparison: ${weeks} weeks (${weekBlocks[0].mon} → ${weekBlocks[weekBlocks.length - 1].fri}), budget $${dailyBudget}/day`,
+    );
+
+    for (const [weekIdx, wb] of weekBlocks.entries()) {
+      for (const scanDate of wb.days) {
+        let gapResults = await this.gapScanner.getAllResults(scanDate);
+        if (gapResults.length === 0) {
+          try {
+            gapResults = await this.gapScanner.scanHistoricalGaps(scanDate);
+          } catch {
+            continue;
+          }
+        }
+        if (gapResults.length === 0) continue;
+
+        const top3 = [...gapResults]
+          .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+          .slice(0, 3);
+
+        const tradingDay = this.getNextTradingDay(scanDate);
+        const startTime = `${tradingDay}T09:30:00-04:00`;
+        const endTime = `${tradingDay}T16:00:00-04:00`;
+
+        const daySetups: StockSetup[] = [];
+        for (const gap of top3) {
+          try {
+            const bars = await this.alpaca.getHistoricalBars(
+              gap.symbol,
+              '5Min',
+              startTime,
+              endTime,
+            );
+            if (bars.length < 6) continue;
+            const dailyBars = await this.getDailyBars(gap.symbol, scanDate);
+            const gapPercent = Number(gap.gapPercent);
+            const isGapUp = gapPercent > 0;
+            daySetups.push({
+              symbol: gap.symbol,
+              bars,
+              gapPercent,
+              isGapUp,
+              side: isGapUp ? 'buy' : 'sell',
+              ma20: gap.ma20 != null ? Number(gap.ma20) : undefined,
+              ma200: gap.ma200 != null ? Number(gap.ma200) : undefined,
+              trendDirection: gap.trendDirection || undefined,
+              dailyContext: gap.dailyContext || undefined,
+              score: gap.score ?? undefined,
+              dailyBars,
+              prevClose: gap.prevClose != null ? Number(gap.prevClose) : undefined,
+            });
+          } catch {
+            /* skip symbol on fetch error */
+          }
+        }
+        if (daySetups.length === 0) continue;
+
+        weeklyResults[weekIdx].daysTraded++;
+
+        const runSafe = (fn: () => SimResult): SimResult | null => {
+          try { return fn(); } catch { return null; }
+        };
+
+        const runs: Record<string, SimResult | null> = {
+          Emanuel: runSafe(() => simulateEmanuel(daySetups, dailyBudget, emanuelParams)),
+          Claude: runSafe(() => simulateClaude(daySetups, dailyBudget)),
+          'Dumb Hunter': runSafe(() => simulateDumbHunter(daySetups, dailyBudget)),
+          ProRealAlgos: runSafe(() => simulateProRealAlgos(daySetups, dailyBudget)),
+          Fabio: runSafe(() => simulateFabio(daySetups, dailyBudget)),
+        };
+
+        for (const name of strategyNames) {
+          const sim = runs[name];
+          if (!sim) continue;
+          const rec = weeklyResults[weekIdx].strategies[name];
+          rec.pnl += sim.totalPnl;
+          rec.trades += sim.trades.length;
+          rec.wins += sim.trades.filter((t) => t.pnl > 0).length;
+        }
+      }
+    }
+
+    // Round pnl, compute totals
+    for (const w of weeklyResults) {
+      for (const s of Object.values(w.strategies)) {
+        s.pnl = Math.round(s.pnl * 100) / 100;
+      }
+    }
+
+    const totals: Record<string, { pnl: number; trades: number; wins: number; winRate: number }> = {};
+    for (const name of strategyNames) {
+      let tp = 0, tt = 0, tw = 0;
+      for (const w of weeklyResults) {
+        tp += w.strategies[name].pnl;
+        tt += w.strategies[name].trades;
+        tw += w.strategies[name].wins;
+      }
+      totals[name] = {
+        pnl: Math.round(tp * 100) / 100,
+        trades: tt,
+        wins: tw,
+        winRate: tt > 0 ? Math.round((tw / tt) * 100 * 100) / 100 : 0,
+      };
+    }
+
+    return { weeks: weeklyResults, totals };
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  DUMB HUNTER'S TOP PICKS — DMC level reclaim over same universe as Emanuel
+  // ═══════════════════════════════════════════════════════════════
+
+  async dumbHunterTopPicks(
+    endDate: string,
+    capital = 1000,
+    lookbackDays = 10,
+    longOnly = false,
+  ) {
+    const end = new Date(endDate + 'T00:00:00');
+    const start = new Date(end);
+    start.setDate(start.getDate() - Math.ceil(lookbackDays * 1.6));
+    const tradingDays = this.getTradingDays(
+      start.toISOString().split('T')[0],
+      endDate,
+    ).slice(-lookbackDays);
+
+    this.logger.log(
+      `Dumb Hunter top picks: ${tradingDays.length} trading days up to ${endDate}`,
+    );
+
+    const days: Array<any> = [];
+    let totalPnl = 0;
+    let totalTrades = 0;
+    let totalWins = 0;
+
+    for (const scanDate of tradingDays) {
+      let gapResults = await this.gapScanner.getAllResults(scanDate);
+      if (gapResults.length === 0) {
+        try {
+          gapResults = await this.gapScanner.scanHistoricalGaps(scanDate);
+        } catch {
+          continue;
+        }
+      }
+      if (gapResults.length === 0) continue;
+
+      const filtered = longOnly
+        ? gapResults.filter((g) => Number(g.gapPercent) > 0)
+        : gapResults;
+
+      const top3 = [...filtered]
+        .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+        .slice(0, 3);
+
+      const tradingDay = this.getNextTradingDay(scanDate);
+      const startTime = `${tradingDay}T09:30:00-04:00`;
+      const endTime = `${tradingDay}T16:00:00-04:00`;
+
+      const picks: Array<any> = [];
+      const daySetups: StockSetup[] = [];
+      const pickMap = new Map<string, any>();
+
+      for (const gap of top3) {
+        const pick: any = {
+          symbol: gap.symbol,
+          gapPercent: Number(gap.gapPercent),
+          score: gap.score ?? 0,
+          scoreReasons: gap.scoreReasons || [],
+          dailyContext: gap.dailyContext || 'other',
+          trendDirection: gap.trendDirection || 'sideways',
+          ma20: gap.ma20 != null ? Number(gap.ma20) : null,
+          ma200: gap.ma200 != null ? Number(gap.ma200) : null,
+          trade: null,
+          skippedReason: null,
+          isDumbHunterPick: false,
+        };
+
+        try {
+          const bars = await this.alpaca.getHistoricalBars(
+            gap.symbol,
+            '5Min',
+            startTime,
+            endTime,
+          );
+          if (bars.length < 6) {
+            pick.skippedReason = 'Not enough intraday bars';
+            picks.push(pick);
+            continue;
+          }
+
+          const dailyBars = await this.getDailyBars(gap.symbol, scanDate);
+          const gapPercent = Number(gap.gapPercent);
+          const isGapUp = gapPercent > 0;
+
+          const setup: StockSetup = {
+            symbol: gap.symbol,
+            bars,
+            gapPercent,
+            isGapUp,
+            side: isGapUp ? 'buy' : 'sell',
+            ma20: gap.ma20 != null ? Number(gap.ma20) : undefined,
+            ma200: gap.ma200 != null ? Number(gap.ma200) : undefined,
+            trendDirection: gap.trendDirection || undefined,
+            dailyContext: gap.dailyContext || undefined,
+            score: gap.score ?? undefined,
+            dailyBars,
+            prevClose: gap.prevClose != null ? Number(gap.prevClose) : undefined,
+          };
+
+          daySetups.push(setup);
+          pickMap.set(gap.symbol, pick);
+        } catch (err) {
+          pick.skippedReason = `Bar fetch error: ${err.message}`;
+        }
+
+        picks.push(pick);
+      }
+
+      let dayPnl = 0;
+      let dayTrades = 0;
+      let dayWins = 0;
+
+      if (daySetups.length > 0) {
+        const sim = simulateDumbHunter(daySetups, capital);
+
+        for (const t of sim.trades) {
+          const pick = pickMap.get(t.symbol!);
+          if (pick) {
+            pick.trade = {
+              side: t.side,
+              entryPrice: t.entryPrice,
+              exitPrice: t.exitPrice,
+              pnl: Math.round(t.pnl * 100) / 100,
+              pnlPercent: Math.round(t.pnlPercent * 100) / 100,
+              exitReason: t.exitReason,
+              shares: t.shares || 0,
+            };
+            pick.isDumbHunterPick = true;
+            dayPnl += t.pnl;
+            dayTrades++;
+            if (t.pnl > 0) dayWins++;
+          }
+        }
+
+        for (const reason of sim.skippedReasons) {
+          const sym = reason.split(':')[0];
+          const pick = pickMap.get(sym);
+          if (pick && !pick.trade && !pick.skippedReason) {
+            pick.skippedReason = reason.split(': ').slice(1).join(': ');
+          }
+        }
+      }
+
+      dayPnl = Math.round(dayPnl * 100) / 100;
+      totalPnl += dayPnl;
+      totalTrades += dayTrades;
+      totalWins += dayWins;
+
+      days.push({ scanDate, tradingDay, picks, dayPnl, dayTrades, dayWins });
+    }
+
+    const daysWithTrades = days.filter((d) => d.dayTrades > 0);
+    const showBestWorst = daysWithTrades.length >= 2;
+    const bestDay = showBestWorst
+      ? daysWithTrades.reduce((b, d) => (d.dayPnl > b.dayPnl ? d : b))
+      : null;
+    const worstDay = showBestWorst
+      ? daysWithTrades.reduce((w, d) => (d.dayPnl < w.dayPnl ? d : w))
+      : null;
+
+    return {
+      days,
+      totals: {
+        totalPnl: Math.round(totalPnl * 100) / 100,
+        totalTrades,
+        totalWins,
+        winRate: totalTrades > 0 ? Math.round((totalWins / totalTrades) * 100 * 100) / 100 : 0,
+        daysAnalysed: days.length,
+        bestDay: bestDay ? { date: bestDay.scanDate, pnl: bestDay.dayPnl } : null,
+        worstDay: worstDay ? { date: worstDay.scanDate, pnl: worstDay.dayPnl } : null,
+      },
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   //  CLAUDE'S TOP PICKS — 2-week lookback with running balance + fees
   // ═══════════════════════════════════════════════════════════════
 
@@ -1229,6 +1573,675 @@ export class BacktestService {
     fees += Math.min(shares * 0.000166, 8.30);
     // Round up to nearest cent
     return Math.ceil(fees * 100) / 100;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  DUMB HUNTER — SWING BACKTEST (multi-day holds, daily-close entries)
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Default swing watchlist — gold proxy (GLD), major indices, mega-caps.
+   * User can override via `symbols` in the request body.
+   */
+  private readonly DUMB_HUNTER_SWING_WATCHLIST = [
+    'GLD', 'SPY', 'QQQ', 'IWM',
+    'NVDA', 'TSLA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'AMD',
+  ];
+
+  async dumbHunterSwingBacktest(
+    endDate: string,
+    capital: number,
+    lookbackWeeks: number,
+    symbols?: string[],
+    paramsOverride?: Partial<DumbHunterSwingParams>,
+  ): Promise<{
+    trades: Array<{
+      symbol: string;
+      side: 'buy' | 'sell';
+      entryDate: string;
+      exitDate: string;
+      holdDays: number;
+      entryPrice: number;
+      exitPrice: number;
+      stopLevel: number;
+      targetPrice: number;
+      shares: number;
+      pnl: number;
+      pnlPercent: number;
+      exitReason: string;
+      equityAfter: number;
+    }>;
+    bySymbol: Record<string, { trades: number; wins: number; pnl: number }>;
+    totals: {
+      startingCapital: number;
+      finalEquity: number;
+      totalPnl: number;
+      totalReturnPercent: number;
+      totalTrades: number;
+      wins: number;
+      losses: number;
+      winRate: number;
+      maxDrawdown: number;
+      avgHoldDays: number;
+      startDate: string;
+      endDate: string;
+      signalsGenerated: number;
+      signalsSkippedNoSlot: number;
+    };
+  }> {
+    const params = { ...DUMB_HUNTER_SWING_DEFAULT_PARAMS, ...(paramsOverride ?? {}) };
+    const watchlist = symbols && symbols.length > 0 ? symbols : this.DUMB_HUNTER_SWING_WATCHLIST;
+
+    this.logger.log(
+      `Dumb Hunter SWING backtest: ${watchlist.length} symbols × ${lookbackWeeks}w lookback, capital $${capital}`,
+    );
+
+    // Fetch daily bars per symbol. For level building we want ~1 year of history
+    // behind the backtest window, so extend the getDailyBars lookback generously.
+    const barsBySymbol = new Map<string, BarData[]>();
+    for (const symbol of watchlist) {
+      try {
+        const bars = await this.getDailyBars(symbol, endDate);
+        if (bars.length > 0) barsBySymbol.set(symbol, bars);
+      } catch (err: any) {
+        this.logger.warn(`Swing: daily bars failed for ${symbol}: ${err?.message ?? err}`);
+      }
+    }
+
+    // Determine the entry window: last `lookbackWeeks * 5` trading days.
+    // (Trading days ≈ weekdays; approximate with lookbackWeeks * 5.)
+    const windowBarCount = lookbackWeeks * 5;
+
+    // Generate swing signals per symbol.
+    const allSignals: DumbHunterSwingSignal[] = [];
+    for (const [symbol, bars] of barsBySymbol) {
+      const startIdx = Math.max(0, bars.length - windowBarCount);
+      const sigs = generateDumbHunterSwingSignals(symbol, bars, startIdx, params);
+      allSignals.push(...sigs);
+    }
+
+    // Sort chronologically for the portfolio simulator.
+    allSignals.sort((a, b) => a.entryDate.localeCompare(b.entryDate));
+
+    // Build the union timeline of bar dates across all symbols, restricted to the
+    // window we care about (one bar before the first signal through the last bar).
+    const dateSet = new Set<string>();
+    for (const [, bars] of barsBySymbol) {
+      for (const b of bars) {
+        const d = b.timestamp.split('T')[0];
+        dateSet.add(d);
+      }
+    }
+    const timeline = [...dateSet].sort();
+
+    type OpenPosition = {
+      symbol: string;
+      side: 'buy' | 'sell';
+      entryDate: string;
+      entryBarIndex: number;
+      entryPrice: number;
+      stopLevel: number;
+      targetPrice: number;
+      shares: number;
+    };
+
+    const openPositions: OpenPosition[] = [];
+    const trades: Array<any> = [];
+    let equity = capital;
+    let peakEquity = equity;
+    let maxDrawdown = 0;
+    let signalsSkippedNoSlot = 0;
+
+    // Pre-index signals by date for O(1) lookup on each timeline day.
+    const signalsByDate = new Map<string, DumbHunterSwingSignal[]>();
+    for (const s of allSignals) {
+      const d = s.entryDate.split('T')[0];
+      if (!signalsByDate.has(d)) signalsByDate.set(d, []);
+      signalsByDate.get(d)!.push(s);
+    }
+
+    // Pre-index daily bars by (symbol, date-prefix) for O(1) lookup.
+    const barByKey = new Map<string, BarData>();
+    for (const [symbol, bars] of barsBySymbol) {
+      for (const b of bars) {
+        const d = b.timestamp.split('T')[0];
+        barByKey.set(`${symbol}::${d}`, b);
+      }
+    }
+
+    for (const date of timeline) {
+      // 1. Close any open positions whose stop/target/time-stop hit today.
+      for (let idx = openPositions.length - 1; idx >= 0; idx--) {
+        const pos = openPositions[idx];
+        const bar = barByKey.get(`${pos.symbol}::${date}`);
+        if (!bar) continue; // non-trading day for this symbol (unlikely but safe)
+
+        const holdDays =
+          Math.round(
+            (new Date(date + 'T00:00:00Z').getTime() -
+              new Date(pos.entryDate.split('T')[0] + 'T00:00:00Z').getTime()) /
+              86400000,
+          );
+
+        let exitPrice: number | null = null;
+        let exitReason: SimulatedTrade['exitReason'] = 'end_of_backtest';
+
+        if (pos.side === 'buy') {
+          if (bar.low <= pos.stopLevel) {
+            exitPrice = pos.stopLevel; exitReason = 'stop_loss';
+          } else if (bar.high >= pos.targetPrice) {
+            exitPrice = pos.targetPrice; exitReason = 'take_profit';
+          }
+        } else {
+          if (bar.high >= pos.stopLevel) {
+            exitPrice = pos.stopLevel; exitReason = 'stop_loss';
+          } else if (bar.low <= pos.targetPrice) {
+            exitPrice = pos.targetPrice; exitReason = 'take_profit';
+          }
+        }
+
+        if (exitPrice === null && holdDays >= params.maxHoldDays) {
+          exitPrice = bar.close;
+          exitReason = 'time_stop';
+        }
+
+        if (exitPrice !== null) {
+          const mult = pos.side === 'buy' ? 1 : -1;
+          const pnl = (exitPrice - pos.entryPrice) * mult * pos.shares;
+          const pnlPercent = ((exitPrice - pos.entryPrice) * mult / pos.entryPrice) * 100;
+          equity += pnl;
+          peakEquity = Math.max(peakEquity, equity);
+          const dd = ((peakEquity - equity) / peakEquity) * 100;
+          maxDrawdown = Math.max(maxDrawdown, dd);
+
+          trades.push({
+            symbol: pos.symbol,
+            side: pos.side,
+            entryDate: pos.entryDate,
+            exitDate: bar.timestamp,
+            holdDays,
+            entryPrice: pos.entryPrice,
+            exitPrice,
+            stopLevel: pos.stopLevel,
+            targetPrice: pos.targetPrice,
+            shares: pos.shares,
+            pnl: Math.round(pnl * 100) / 100,
+            pnlPercent: Math.round(pnlPercent * 100) / 100,
+            exitReason,
+            equityAfter: Math.round(equity * 100) / 100,
+          });
+          openPositions.splice(idx, 1);
+        }
+      }
+
+      // 2. Open new positions from signals entering today, up to the concurrent cap.
+      const todaySignals = signalsByDate.get(date) ?? [];
+      for (const sig of todaySignals) {
+        if (openPositions.length >= params.maxConcurrentPositions) {
+          signalsSkippedNoSlot++;
+          continue;
+        }
+        // One position per symbol at a time
+        if (openPositions.some((p) => p.symbol === sig.symbol)) continue;
+
+        const riskPerShare = Math.abs(sig.entryPrice - sig.stopLevel);
+        if (riskPerShare <= 0) continue;
+        const riskDollars = equity * params.riskPercent;
+        const shares = Math.floor(riskDollars / riskPerShare);
+        if (shares <= 0) continue;
+
+        openPositions.push({
+          symbol: sig.symbol,
+          side: sig.side,
+          entryDate: sig.entryDate,
+          entryBarIndex: sig.entryBarIndex,
+          entryPrice: sig.entryPrice,
+          stopLevel: sig.stopLevel,
+          targetPrice: sig.targetPrice,
+          shares,
+        });
+      }
+    }
+
+    // 3. Close any still-open positions at the last available bar.
+    for (const pos of openPositions) {
+      const bars = barsBySymbol.get(pos.symbol) ?? [];
+      const lastBar = bars[bars.length - 1];
+      if (!lastBar) continue;
+      const mult = pos.side === 'buy' ? 1 : -1;
+      const pnl = (lastBar.close - pos.entryPrice) * mult * pos.shares;
+      const pnlPercent = ((lastBar.close - pos.entryPrice) * mult / pos.entryPrice) * 100;
+      equity += pnl;
+      peakEquity = Math.max(peakEquity, equity);
+      maxDrawdown = Math.max(maxDrawdown, ((peakEquity - equity) / peakEquity) * 100);
+
+      const holdDays = Math.round(
+        (new Date(lastBar.timestamp.split('T')[0] + 'T00:00:00Z').getTime() -
+          new Date(pos.entryDate.split('T')[0] + 'T00:00:00Z').getTime()) /
+          86400000,
+      );
+
+      trades.push({
+        symbol: pos.symbol,
+        side: pos.side,
+        entryDate: pos.entryDate,
+        exitDate: lastBar.timestamp,
+        holdDays,
+        entryPrice: pos.entryPrice,
+        exitPrice: lastBar.close,
+        stopLevel: pos.stopLevel,
+        targetPrice: pos.targetPrice,
+        shares: pos.shares,
+        pnl: Math.round(pnl * 100) / 100,
+        pnlPercent: Math.round(pnlPercent * 100) / 100,
+        exitReason: 'end_of_backtest',
+        equityAfter: Math.round(equity * 100) / 100,
+      });
+    }
+
+    // Aggregate per-symbol stats + totals.
+    const bySymbol: Record<string, { trades: number; wins: number; pnl: number }> = {};
+    for (const t of trades) {
+      if (!bySymbol[t.symbol]) bySymbol[t.symbol] = { trades: 0, wins: 0, pnl: 0 };
+      bySymbol[t.symbol].trades++;
+      if (t.pnl > 0) bySymbol[t.symbol].wins++;
+      bySymbol[t.symbol].pnl = Math.round((bySymbol[t.symbol].pnl + t.pnl) * 100) / 100;
+    }
+
+    const wins = trades.filter((t) => t.pnl > 0).length;
+    const losses = trades.filter((t) => t.pnl < 0).length;
+    const totalPnl = Math.round(trades.reduce((s, t) => s + t.pnl, 0) * 100) / 100;
+    const avgHoldDays = trades.length > 0
+      ? Math.round((trades.reduce((s, t) => s + t.holdDays, 0) / trades.length) * 10) / 10
+      : 0;
+
+    const startDate = timeline[Math.max(0, timeline.length - windowBarCount)] ?? timeline[0] ?? endDate;
+    const finalEndDate = timeline[timeline.length - 1] ?? endDate;
+
+    return {
+      trades,
+      bySymbol,
+      totals: {
+        startingCapital: capital,
+        finalEquity: Math.round(equity * 100) / 100,
+        totalPnl,
+        totalReturnPercent: Math.round((totalPnl / capital) * 100 * 100) / 100,
+        totalTrades: trades.length,
+        wins,
+        losses,
+        winRate: trades.length > 0 ? Math.round((wins / trades.length) * 100 * 100) / 100 : 0,
+        maxDrawdown: Math.round(maxDrawdown * 100) / 100,
+        avgHoldDays,
+        startDate,
+        endDate: finalEndDate,
+        signalsGenerated: allSignals.length,
+        signalsSkippedNoSlot,
+      },
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  CLAUDE HYBRID — Swing-primary + Intraday-blend supplement
+  // ═══════════════════════════════════════════════════════════════
+  //
+  // Leans into the Dumb Hunter SWING edge (multi-day HTF-reclaim holds) as the
+  // primary capital deployment. Layers the intraday author blend (Emanuel +
+  // Dumb Hunter intraday + ProRealAlgos + Fabio) on top for same-day gap plays.
+  //
+  //   SWING LAYER  — up to maxConcurrentSwing positions held many days
+  //   INTRADAY LAYER — up to maxIntradayPerDay trades per day on gap setups
+  //                    (uses the existing simulateClaude blend engine)
+  //
+  // Both layers share the running equity pool: swing wins let intraday size
+  // bigger, intraday losses shrink swing size. Max-concurrent caps protect
+  // against correlated drawdown.
+
+  async claudeHybridBacktest(
+    endDate: string,
+    capital = 10000,
+    lookbackWeeks = 20,
+    swingSymbols?: string[],
+    maxConcurrentSwing = 5,
+    maxIntradayPerDay = 2,
+  ): Promise<{
+    trades: Array<{
+      tradeType: 'swing' | 'intraday';
+      symbol: string;
+      side: 'buy' | 'sell';
+      entryDate: string;
+      exitDate: string;
+      holdDays: number;
+      entryPrice: number;
+      exitPrice: number;
+      stopLevel?: number;
+      targetPrice?: number;
+      shares: number;
+      pnl: number;
+      pnlPercent: number;
+      exitReason: string;
+      equityAfter: number;
+    }>;
+    bySymbol: Record<string, { trades: number; wins: number; pnl: number }>;
+    byLayer: {
+      swing: { trades: number; wins: number; pnl: number };
+      intraday: { trades: number; wins: number; pnl: number };
+    };
+    totals: {
+      startingCapital: number;
+      finalEquity: number;
+      totalPnl: number;
+      totalReturnPercent: number;
+      totalTrades: number;
+      wins: number;
+      losses: number;
+      winRate: number;
+      maxDrawdown: number;
+      avgHoldDays: number;
+      startDate: string;
+      endDate: string;
+      swingSignals: number;
+      swingSignalsSkippedNoSlot: number;
+    };
+  }> {
+    const params = DUMB_HUNTER_SWING_DEFAULT_PARAMS;
+    const watchlist = swingSymbols && swingSymbols.length > 0
+      ? swingSymbols
+      : this.DUMB_HUNTER_SWING_WATCHLIST;
+
+    this.logger.log(
+      `Claude HYBRID: ${watchlist.length} swing syms × ${lookbackWeeks}w + per-day intraday blend, capital $${capital}`,
+    );
+
+    // ── Phase 1: fetch swing daily bars + generate signals ──
+    const barsBySymbol = new Map<string, BarData[]>();
+    for (const symbol of watchlist) {
+      try {
+        const bars = await this.getDailyBars(symbol, endDate);
+        if (bars.length > 0) barsBySymbol.set(symbol, bars);
+      } catch (err: any) {
+        this.logger.warn(`Hybrid: swing bars failed for ${symbol}: ${err?.message ?? err}`);
+      }
+    }
+
+    const windowBars = lookbackWeeks * 5;
+    const allSwingSignals: DumbHunterSwingSignal[] = [];
+    for (const [symbol, bars] of barsBySymbol) {
+      const startIdx = Math.max(0, bars.length - windowBars);
+      allSwingSignals.push(...generateDumbHunterSwingSignals(symbol, bars, startIdx, params));
+    }
+    allSwingSignals.sort((a, b) => a.entryDate.localeCompare(b.entryDate));
+
+    const signalsByDate = new Map<string, DumbHunterSwingSignal[]>();
+    for (const s of allSwingSignals) {
+      const d = s.entryDate.split('T')[0];
+      if (!signalsByDate.has(d)) signalsByDate.set(d, []);
+      signalsByDate.get(d)!.push(s);
+    }
+
+    const barByKey = new Map<string, BarData>();
+    for (const [symbol, bars] of barsBySymbol) {
+      for (const b of bars) {
+        barByKey.set(`${symbol}::${b.timestamp.split('T')[0]}`, b);
+      }
+    }
+
+    // ── Phase 2: build the portfolio timeline (union of trading days in window) ──
+    const dateSet = new Set<string>();
+    for (const [, bars] of barsBySymbol) {
+      for (const b of bars.slice(-windowBars - 10)) {
+        dateSet.add(b.timestamp.split('T')[0]);
+      }
+    }
+    const timeline = [...dateSet].sort();
+    if (timeline.length === 0) {
+      return {
+        trades: [],
+        bySymbol: {},
+        byLayer: { swing: { trades: 0, wins: 0, pnl: 0 }, intraday: { trades: 0, wins: 0, pnl: 0 } },
+        totals: {
+          startingCapital: capital, finalEquity: capital, totalPnl: 0, totalReturnPercent: 0,
+          totalTrades: 0, wins: 0, losses: 0, winRate: 0, maxDrawdown: 0, avgHoldDays: 0,
+          startDate: endDate, endDate, swingSignals: 0, swingSignalsSkippedNoSlot: 0,
+        },
+      };
+    }
+
+    // ── Phase 3: walk forward day-by-day, running swing + intraday ──
+    type OpenSwing = {
+      symbol: string;
+      side: 'buy' | 'sell';
+      entryDate: string;
+      entryPrice: number;
+      stopLevel: number;
+      targetPrice: number;
+      shares: number;
+    };
+
+    const openSwing: OpenSwing[] = [];
+    const trades: Array<any> = [];
+    let equity = capital;
+    let peak = equity;
+    let maxDrawdown = 0;
+    let swingSignalsSkipped = 0;
+
+    for (const date of timeline) {
+      // 3a. Close any open swing positions that hit stop / target / time-stop today.
+      for (let i = openSwing.length - 1; i >= 0; i--) {
+        const pos = openSwing[i];
+        const bar = barByKey.get(`${pos.symbol}::${date}`);
+        if (!bar) continue;
+
+        const holdDays = Math.round(
+          (new Date(date + 'T00:00:00Z').getTime() -
+            new Date(pos.entryDate.split('T')[0] + 'T00:00:00Z').getTime()) /
+            86400000,
+        );
+
+        let exitPrice: number | null = null;
+        let exitReason: SimulatedTrade['exitReason'] = 'end_of_backtest';
+        if (pos.side === 'buy') {
+          if (bar.low <= pos.stopLevel) { exitPrice = pos.stopLevel; exitReason = 'stop_loss'; }
+          else if (bar.high >= pos.targetPrice) { exitPrice = pos.targetPrice; exitReason = 'take_profit'; }
+        } else {
+          if (bar.high >= pos.stopLevel) { exitPrice = pos.stopLevel; exitReason = 'stop_loss'; }
+          else if (bar.low <= pos.targetPrice) { exitPrice = pos.targetPrice; exitReason = 'take_profit'; }
+        }
+        if (exitPrice === null && holdDays >= params.maxHoldDays) {
+          exitPrice = bar.close;
+          exitReason = 'time_stop';
+        }
+
+        if (exitPrice !== null) {
+          const mult = pos.side === 'buy' ? 1 : -1;
+          const pnl = (exitPrice - pos.entryPrice) * mult * pos.shares;
+          const pnlPercent = ((exitPrice - pos.entryPrice) * mult / pos.entryPrice) * 100;
+          equity += pnl;
+          peak = Math.max(peak, equity);
+          maxDrawdown = Math.max(maxDrawdown, ((peak - equity) / peak) * 100);
+
+          trades.push({
+            tradeType: 'swing',
+            symbol: pos.symbol, side: pos.side,
+            entryDate: pos.entryDate, exitDate: bar.timestamp, holdDays,
+            entryPrice: pos.entryPrice, exitPrice,
+            stopLevel: pos.stopLevel, targetPrice: pos.targetPrice,
+            shares: pos.shares,
+            pnl: Math.round(pnl * 100) / 100,
+            pnlPercent: Math.round(pnlPercent * 100) / 100,
+            exitReason, equityAfter: Math.round(equity * 100) / 100,
+          });
+          openSwing.splice(i, 1);
+        }
+      }
+
+      // 3b. Open new swing signals entering today (FCFS under concurrent cap, one per symbol).
+      const todaySignals = signalsByDate.get(date) ?? [];
+      for (const sig of todaySignals) {
+        if (openSwing.length >= maxConcurrentSwing) { swingSignalsSkipped++; continue; }
+        if (openSwing.some((p) => p.symbol === sig.symbol)) continue;
+        const riskPerShare = Math.abs(sig.entryPrice - sig.stopLevel);
+        if (riskPerShare <= 0) continue;
+        const riskDollars = equity * params.riskPercent;
+        const shares = Math.floor(riskDollars / riskPerShare);
+        if (shares <= 0) continue;
+        openSwing.push({
+          symbol: sig.symbol, side: sig.side,
+          entryDate: sig.entryDate, entryPrice: sig.entryPrice,
+          stopLevel: sig.stopLevel, targetPrice: sig.targetPrice, shares,
+        });
+      }
+
+      // 3c. INTRADAY LAYER — run the existing Claude blend on this date's gap setups.
+      // Only executes on weekdays; uses the day's gap scan → top 3 setups.
+      const dow = new Date(date + 'T12:00:00Z').getUTCDay();
+      if (dow === 0 || dow === 6) continue; // skip weekends
+
+      let gapResults = await this.gapScanner.getAllResults(date);
+      if (gapResults.length === 0) {
+        try { gapResults = await this.gapScanner.scanHistoricalGaps(date); }
+        catch { continue; }
+      }
+      if (gapResults.length === 0) continue;
+
+      const top3 = [...gapResults]
+        .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+        .slice(0, 3);
+
+      const tradingDay = this.getNextTradingDay(date);
+      const startTime = `${tradingDay}T09:30:00-04:00`;
+      const endTime = `${tradingDay}T16:00:00-04:00`;
+
+      const daySetups: StockSetup[] = [];
+      for (const gap of top3) {
+        try {
+          const bars = await this.alpaca.getHistoricalBars(gap.symbol, '5Min', startTime, endTime);
+          if (bars.length < 6) continue;
+          const dailyBars = await this.getDailyBars(gap.symbol, date);
+          const gapPercent = Number(gap.gapPercent);
+          const isGapUp = gapPercent > 0;
+          daySetups.push({
+            symbol: gap.symbol, bars, gapPercent, isGapUp,
+            side: isGapUp ? 'buy' : 'sell',
+            ma20: gap.ma20 != null ? Number(gap.ma20) : undefined,
+            ma200: gap.ma200 != null ? Number(gap.ma200) : undefined,
+            trendDirection: gap.trendDirection || undefined,
+            dailyContext: gap.dailyContext || undefined,
+            score: gap.score ?? undefined,
+            dailyBars,
+            prevClose: gap.prevClose != null ? Number(gap.prevClose) : undefined,
+          });
+        } catch { /* skip fetch errors */ }
+      }
+
+      if (daySetups.length === 0) continue;
+
+      // Reuse the existing intraday blend, with the tighter per-day trade cap for the hybrid.
+      let intradaySim: SimResult | null = null;
+      try {
+        intradaySim = simulateClaude(daySetups, equity, { maxTradesPerDay: maxIntradayPerDay });
+      } catch (err: any) {
+        this.logger.warn(`Hybrid intraday blend failed for ${date}: ${err?.message ?? err}`);
+      }
+      if (!intradaySim) continue;
+
+      for (const t of intradaySim.trades) {
+        equity += t.pnl;
+        peak = Math.max(peak, equity);
+        maxDrawdown = Math.max(maxDrawdown, ((peak - equity) / peak) * 100);
+        trades.push({
+          tradeType: 'intraday',
+          symbol: t.symbol ?? 'UNKNOWN', side: t.side,
+          entryDate: date, exitDate: date, holdDays: 0,
+          entryPrice: t.entryPrice, exitPrice: t.exitPrice,
+          stopLevel: undefined, targetPrice: undefined,
+          shares: t.shares ?? 0,
+          pnl: Math.round(t.pnl * 100) / 100,
+          pnlPercent: Math.round(t.pnlPercent * 100) / 100,
+          exitReason: t.exitReason,
+          equityAfter: Math.round(equity * 100) / 100,
+        });
+      }
+    }
+
+    // 3d. Close any still-open swing positions at their last available bar.
+    for (const pos of openSwing) {
+      const bars = barsBySymbol.get(pos.symbol) ?? [];
+      const lastBar = bars[bars.length - 1];
+      if (!lastBar) continue;
+      const mult = pos.side === 'buy' ? 1 : -1;
+      const pnl = (lastBar.close - pos.entryPrice) * mult * pos.shares;
+      const pnlPercent = ((lastBar.close - pos.entryPrice) * mult / pos.entryPrice) * 100;
+      equity += pnl;
+      peak = Math.max(peak, equity);
+      maxDrawdown = Math.max(maxDrawdown, ((peak - equity) / peak) * 100);
+      const holdDays = Math.round(
+        (new Date(lastBar.timestamp.split('T')[0] + 'T00:00:00Z').getTime() -
+          new Date(pos.entryDate.split('T')[0] + 'T00:00:00Z').getTime()) /
+          86400000,
+      );
+      trades.push({
+        tradeType: 'swing',
+        symbol: pos.symbol, side: pos.side,
+        entryDate: pos.entryDate, exitDate: lastBar.timestamp, holdDays,
+        entryPrice: pos.entryPrice, exitPrice: lastBar.close,
+        stopLevel: pos.stopLevel, targetPrice: pos.targetPrice,
+        shares: pos.shares,
+        pnl: Math.round(pnl * 100) / 100,
+        pnlPercent: Math.round(pnlPercent * 100) / 100,
+        exitReason: 'end_of_backtest',
+        equityAfter: Math.round(equity * 100) / 100,
+      });
+    }
+
+    // ── Aggregates ──
+    const bySymbol: Record<string, { trades: number; wins: number; pnl: number }> = {};
+    const byLayer = {
+      swing: { trades: 0, wins: 0, pnl: 0 },
+      intraday: { trades: 0, wins: 0, pnl: 0 },
+    };
+    for (const t of trades) {
+      if (!bySymbol[t.symbol]) bySymbol[t.symbol] = { trades: 0, wins: 0, pnl: 0 };
+      bySymbol[t.symbol].trades++;
+      if (t.pnl > 0) bySymbol[t.symbol].wins++;
+      bySymbol[t.symbol].pnl = Math.round((bySymbol[t.symbol].pnl + t.pnl) * 100) / 100;
+
+      const layer = byLayer[t.tradeType as 'swing' | 'intraday'];
+      layer.trades++;
+      if (t.pnl > 0) layer.wins++;
+      layer.pnl = Math.round((layer.pnl + t.pnl) * 100) / 100;
+    }
+
+    const wins = trades.filter((t) => t.pnl > 0).length;
+    const losses = trades.filter((t) => t.pnl < 0).length;
+    const totalPnl = Math.round(trades.reduce((s, t) => s + t.pnl, 0) * 100) / 100;
+    const avgHoldDays = trades.length > 0
+      ? Math.round((trades.reduce((s, t) => s + t.holdDays, 0) / trades.length) * 10) / 10
+      : 0;
+
+    // Sort trades by entryDate so the UI sees them chronologically.
+    trades.sort((a, b) => a.entryDate.localeCompare(b.entryDate));
+
+    return {
+      trades,
+      bySymbol,
+      byLayer,
+      totals: {
+        startingCapital: capital,
+        finalEquity: Math.round(equity * 100) / 100,
+        totalPnl,
+        totalReturnPercent: Math.round((totalPnl / capital) * 100 * 100) / 100,
+        totalTrades: trades.length,
+        wins,
+        losses,
+        winRate: trades.length > 0 ? Math.round((wins / trades.length) * 100 * 100) / 100 : 0,
+        maxDrawdown: Math.round(maxDrawdown * 100) / 100,
+        avgHoldDays,
+        startDate: timeline[0],
+        endDate: timeline[timeline.length - 1],
+        swingSignals: allSwingSignals.length,
+        swingSignalsSkippedNoSlot: swingSignalsSkipped,
+      },
+    };
   }
 
   async claudeTopPicks(

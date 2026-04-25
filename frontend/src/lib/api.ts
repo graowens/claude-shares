@@ -556,3 +556,185 @@ export const getProRealAlgosPicks = (endDate: string, startingCapital?: number, 
     method: "POST",
     body: JSON.stringify({ endDate, startingCapital, lookbackDays, symbols, longOnly }),
   });
+
+// Dumb Hunter Top Picks — DMC level reclaim, same flat-pnl shape as Emanuel
+export interface DumbHunterPick {
+  symbol: string;
+  gapPercent: number;
+  score: number;
+  scoreReasons: string[];
+  dailyContext: string;
+  trendDirection: string;
+  ma20: number | null;
+  ma200: number | null;
+  trade: EmanuelPickTrade | null;
+  skippedReason: string | null;
+  isDumbHunterPick: boolean;
+}
+
+export interface DumbHunterPicksDay {
+  scanDate: string;
+  tradingDay: string;
+  picks: DumbHunterPick[];
+  dayPnl: number;
+  dayTrades: number;
+  dayWins: number;
+}
+
+export interface DumbHunterPicksResult {
+  days: DumbHunterPicksDay[];
+  totals: {
+    totalPnl: number;
+    totalTrades: number;
+    totalWins: number;
+    winRate: number;
+    daysAnalysed: number;
+    bestDay: { date: string; pnl: number } | null;
+    worstDay: { date: string; pnl: number } | null;
+  };
+}
+
+export const getDumbHunterPicks = (endDate: string, startingCapital?: number, lookbackDays?: number, longOnly?: boolean) =>
+  request<DumbHunterPicksResult>("/backtest/dumb-hunter-picks", {
+    method: "POST",
+    body: JSON.stringify({ endDate, startingCapital, lookbackDays, longOnly }),
+  });
+
+// Weekly Strategy Comparison — 10 weeks, Mon–Fri, P/L per strategy, daily budget resets
+export interface WeeklyStrategyStats {
+  pnl: number;
+  trades: number;
+  wins: number;
+}
+
+export interface WeeklyStrategyTotals extends WeeklyStrategyStats {
+  winRate: number;
+}
+
+export interface WeeklyComparisonWeek {
+  weekStart: string;
+  weekEnd: string;
+  daysTraded: number;
+  strategies: Record<string, WeeklyStrategyStats>;
+}
+
+export interface WeeklyComparisonResult {
+  weeks: WeeklyComparisonWeek[];
+  totals: Record<string, WeeklyStrategyTotals>;
+}
+
+export const getWeeklyComparison = (endDate: string, dailyBudget?: number, weeks?: number) =>
+  request<WeeklyComparisonResult>("/backtest/weekly-comparison", {
+    method: "POST",
+    body: JSON.stringify({ endDate, dailyBudget, weeks }),
+  });
+
+// Dumb Hunter SWING backtest — multi-day holds, daily-close entries
+export interface DumbHunterSwingTrade {
+  symbol: string;
+  side: "buy" | "sell";
+  entryDate: string;
+  exitDate: string;
+  holdDays: number;
+  entryPrice: number;
+  exitPrice: number;
+  stopLevel: number;
+  targetPrice: number;
+  shares: number;
+  pnl: number;
+  pnlPercent: number;
+  exitReason: string;
+  equityAfter: number;
+}
+
+export interface DumbHunterSwingResult {
+  trades: DumbHunterSwingTrade[];
+  bySymbol: Record<string, { trades: number; wins: number; pnl: number }>;
+  totals: {
+    startingCapital: number;
+    finalEquity: number;
+    totalPnl: number;
+    totalReturnPercent: number;
+    totalTrades: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    maxDrawdown: number;
+    avgHoldDays: number;
+    startDate: string;
+    endDate: string;
+    signalsGenerated: number;
+    signalsSkippedNoSlot: number;
+  };
+}
+
+export const getDumbHunterSwing = (
+  endDate: string,
+  startingCapital?: number,
+  lookbackWeeks?: number,
+  symbols?: string[],
+) =>
+  request<DumbHunterSwingResult>("/backtest/dumb-hunter-swing", {
+    method: "POST",
+    body: JSON.stringify({ endDate, startingCapital, lookbackWeeks, symbols }),
+  });
+
+// Claude HYBRID — swing-primary + intraday-blend combined portfolio
+export interface ClaudeHybridTrade {
+  tradeType: "swing" | "intraday";
+  symbol: string;
+  side: "buy" | "sell";
+  entryDate: string;
+  exitDate: string;
+  holdDays: number;
+  entryPrice: number;
+  exitPrice: number;
+  stopLevel?: number;
+  targetPrice?: number;
+  shares: number;
+  pnl: number;
+  pnlPercent: number;
+  exitReason: string;
+  equityAfter: number;
+}
+
+export interface ClaudeHybridResult {
+  trades: ClaudeHybridTrade[];
+  bySymbol: Record<string, { trades: number; wins: number; pnl: number }>;
+  byLayer: {
+    swing: { trades: number; wins: number; pnl: number };
+    intraday: { trades: number; wins: number; pnl: number };
+  };
+  totals: {
+    startingCapital: number;
+    finalEquity: number;
+    totalPnl: number;
+    totalReturnPercent: number;
+    totalTrades: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    maxDrawdown: number;
+    avgHoldDays: number;
+    startDate: string;
+    endDate: string;
+    swingSignals: number;
+    swingSignalsSkippedNoSlot: number;
+  };
+}
+
+export const getClaudeHybrid = (
+  endDate: string,
+  startingCapital?: number,
+  lookbackWeeks?: number,
+  swingSymbols?: string[],
+  maxConcurrentSwing?: number,
+  maxIntradayPerDay?: number,
+) =>
+  request<ClaudeHybridResult>("/backtest/claude-hybrid", {
+    method: "POST",
+    body: JSON.stringify({
+      endDate, startingCapital, lookbackWeeks, swingSymbols,
+      maxConcurrentSwing, maxIntradayPerDay,
+    }),
+  });

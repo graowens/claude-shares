@@ -70,6 +70,59 @@ export class BacktestController {
     );
   }
 
+  @Post('dumb-hunter-picks')
+  dumbHunterPicks(@Body() body: { endDate: string; startingCapital?: number; lookbackDays?: number; longOnly?: boolean }) {
+    return this.backtestService.dumbHunterTopPicks(
+      body.endDate,
+      body.startingCapital || 1000,
+      body.lookbackDays || 10,
+      body.longOnly ?? false,
+    );
+  }
+
+  @Post('weekly-comparison')
+  weeklyComparison(@Body() body: { endDate: string; dailyBudget?: number; weeks?: number }) {
+    return this.backtestService.weeklyComparison(
+      body.endDate,
+      body.dailyBudget || 1000,
+      body.weeks || 10,
+    );
+  }
+
+  @Post('dumb-hunter-swing')
+  dumbHunterSwing(@Body() body: {
+    endDate: string;
+    startingCapital?: number;
+    lookbackWeeks?: number;
+    symbols?: string[];
+  }) {
+    return this.backtestService.dumbHunterSwingBacktest(
+      body.endDate,
+      body.startingCapital || 10000,
+      body.lookbackWeeks || 20,
+      body.symbols,
+    );
+  }
+
+  @Post('claude-hybrid')
+  claudeHybrid(@Body() body: {
+    endDate: string;
+    startingCapital?: number;
+    lookbackWeeks?: number;
+    swingSymbols?: string[];
+    maxConcurrentSwing?: number;
+    maxIntradayPerDay?: number;
+  }) {
+    return this.backtestService.claudeHybridBacktest(
+      body.endDate,
+      body.startingCapital || 10000,
+      body.lookbackWeeks || 20,
+      body.swingSymbols,
+      body.maxConcurrentSwing || 5,
+      body.maxIntradayPerDay || 2,
+    );
+  }
+
   @Post('backfill')
   backfill(@Body() body: { startDate: string; endDate: string }) {
     // Fire and forget — returns immediately, runs in background

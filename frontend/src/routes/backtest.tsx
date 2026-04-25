@@ -13,12 +13,20 @@ import {
   getEmanuelPicks,
   getClaudePicks,
   getProRealAlgosPicks,
+  getDumbHunterPicks,
+  getWeeklyComparison,
+  getDumbHunterSwing,
+  getClaudeHybrid,
   type BacktestParams,
   type GapScanResult,
   type BacktestFromGapsResult,
   type ClaudeOptimiseResult,
   type EmanuelPicksResult,
   type ClaudePicksResult,
+  type DumbHunterPicksResult,
+  type WeeklyComparisonResult,
+  type DumbHunterSwingResult,
+  type ClaudeHybridResult,
 } from "@/lib/api";
 import { cn, formatCurrency, formatDate, plClass, exchangeColor } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,6 +60,7 @@ import {
   Users,
   Brain,
   Zap,
+  Crosshair,
 } from "lucide-react";
 
 export const backtestRoute = createRoute({
@@ -110,11 +119,17 @@ function contextBadge(ctx: string | null) {
 
 function exitReasonBadge(reason: string) {
   const r = reason.toLowerCase();
-  if (r.includes("take profit") || r.includes("tp"))
+  if (r.includes("take_profit") || r.includes("take profit") || r === "tp")
     return <Badge variant="success">Take Profit</Badge>;
-  if (r.includes("stop loss") || r.includes("sl"))
+  if (r.includes("stop_loss") || r.includes("stop loss") || r === "sl")
     return <Badge variant="danger">Stop Loss</Badge>;
-  if (r.includes("end of hour") || r.includes("eoh") || r.includes("time"))
+  if (r.includes("time_stop") || r.includes("time stop"))
+    return <Badge variant="warning">Time Stop</Badge>;
+  if (r.includes("end_of_backtest"))
+    return <Badge variant="secondary">Still Open (EOD)</Badge>;
+  if (r.includes("end_of_day") || r.includes("end of day"))
+    return <Badge variant="secondary">End of Day</Badge>;
+  if (r.includes("end of hour") || r.includes("eoh"))
     return <Badge variant="warning">End of Hour</Badge>;
   return <Badge variant="secondary">{reason}</Badge>;
 }
@@ -156,6 +171,18 @@ function BacktestPage() {
   const [emanuelPicks, setEmanuelPicks] = useState<EmanuelPicksResult | null>(null);
   const [claudePicks, setClaudePicks] = useState<ClaudePicksResult | null>(null);
   const [proRealPicks, setProRealPicks] = useState<ClaudePicksResult | null>(null);
+  const [dumbHunterPicks, setDumbHunterPicks] = useState<DumbHunterPicksResult | null>(null);
+  const [weeklyResult, setWeeklyResult] = useState<WeeklyComparisonResult | null>(null);
+  const [swingResult, setSwingResult] = useState<DumbHunterSwingResult | null>(null);
+  const [swingSymbols, setSwingSymbols] = useState("GLD, SPY, QQQ, IWM, NVDA, TSLA, AAPL, MSFT, AMZN, GOOGL, META, AMD");
+  const [swingCapital, setSwingCapital] = useState("10000");
+  const [swingWeeks, setSwingWeeks] = useState("20");
+  const [hybridResult, setHybridResult] = useState<ClaudeHybridResult | null>(null);
+  const [hybridSymbols, setHybridSymbols] = useState("GLD, SPY, QQQ, IWM, NVDA, TSLA, AAPL, MSFT, AMZN, GOOGL, META, AMD");
+  const [hybridCapital, setHybridCapital] = useState("10000");
+  const [hybridWeeks, setHybridWeeks] = useState("20");
+  const [hybridMaxSwing, setHybridMaxSwing] = useState("5");
+  const [hybridMaxIntraday, setHybridMaxIntraday] = useState("2");
 
   // Emanuel top picks
   const emanuelMut = useMutation({
@@ -177,6 +204,43 @@ function BacktestPage() {
       return getProRealAlgosPicks(scanDate, Number(dailyBudget) || 1000, Number(lookbackDays) || 10, symbols, longOnly);
     },
     onSuccess: (data) => setProRealPicks(data),
+  });
+
+  // Dumb Hunter top picks — DMC level reclaim
+  const dumbHunterMut = useMutation({
+    mutationFn: () => getDumbHunterPicks(scanDate, Number(dailyBudget) || 1000, Number(lookbackDays) || 10, longOnly),
+    onSuccess: (data) => setDumbHunterPicks(data),
+  });
+
+  // Weekly strategy comparison — 10 weeks Mon–Fri, every strategy, fresh capital each day
+  const weeklyMut = useMutation({
+    mutationFn: () => getWeeklyComparison(scanDate, Number(dailyBudget) || 1000, 10),
+    onSuccess: (data) => setWeeklyResult(data),
+  });
+
+  // Dumb Hunter SWING backtest — multi-day holds, daily-close reclaims
+  const swingMut = useMutation({
+    mutationFn: () => {
+      const syms = swingSymbols.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
+      return getDumbHunterSwing(scanDate, Number(swingCapital) || 10000, Number(swingWeeks) || 20, syms);
+    },
+    onSuccess: (data) => setSwingResult(data),
+  });
+
+  // Claude HYBRID — swing-primary + intraday-blend combined portfolio
+  const hybridMut = useMutation({
+    mutationFn: () => {
+      const syms = hybridSymbols.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
+      return getClaudeHybrid(
+        scanDate,
+        Number(hybridCapital) || 10000,
+        Number(hybridWeeks) || 20,
+        syms,
+        Number(hybridMaxSwing) || 5,
+        Number(hybridMaxIntraday) || 2,
+      );
+    },
+    onSuccess: (data) => setHybridResult(data),
   });
 
   // Claude optimiser
@@ -727,6 +791,639 @@ function BacktestPage() {
           )}
         </Card>
       )}
+
+      {/* Dumb Hunter's Top Picks — DMC Level Reclaim */}
+      {scanDate && (
+        <Card className="border-fuchsia-500/30">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Crosshair className="h-5 w-5 text-fuchsia-400" />
+                Dumb Hunter's DMC Reclaim — {lookbackDays} Day Lookback
+              </CardTitle>
+              <Button
+                onClick={() => dumbHunterMut.mutate()}
+                disabled={!scanDate || dumbHunterMut.isPending}
+                className="bg-fuchsia-600 hover:bg-fuchsia-700"
+              >
+                {dumbHunterMut.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="mr-2 h-4 w-4" />
+                )}
+                {dumbHunterMut.isPending ? "Analysing..." : "Run Dumb Hunter's Picks"}
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Enters when a 5-min candle closes back into a previously-lost HTF level. Target = next level, stop = reclaim-bar extreme.
+            </p>
+          </CardHeader>
+          {dumbHunterMut.isError && (
+            <CardContent>
+              <p className="text-sm text-red-400">Failed: {dumbHunterMut.error.message}</p>
+            </CardContent>
+          )}
+          {dumbHunterPicks && (
+            <CardContent className="space-y-4 pt-0">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                <Card className="bg-fuchsia-500/5 border-fuchsia-500/20">
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Total P/L</p>
+                    <p className={cn("text-2xl font-bold", plClass(dumbHunterPicks.totals.totalPnl))}>
+                      {formatCurrency(dumbHunterPicks.totals.totalPnl)}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Win Rate</p>
+                    <p className={cn("text-2xl font-bold", dumbHunterPicks.totals.winRate >= 50 ? "text-emerald-400" : "text-red-400")}>
+                      {dumbHunterPicks.totals.winRate.toFixed(1)}%
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Trades</p>
+                    <p className="text-2xl font-bold">
+                      {dumbHunterPicks.totals.totalWins}W / {dumbHunterPicks.totals.totalTrades - dumbHunterPicks.totals.totalWins}L
+                    </p>
+                  </CardContent>
+                </Card>
+                {dumbHunterPicks.totals.bestDay && (
+                  <Card>
+                    <CardContent className="pt-6">
+                      <p className="text-xs text-muted-foreground">Best Day</p>
+                      <p className="text-lg font-bold text-emerald-400">
+                        {formatCurrency(dumbHunterPicks.totals.bestDay.pnl)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{dumbHunterPicks.totals.bestDay.date}</p>
+                    </CardContent>
+                  </Card>
+                )}
+                {dumbHunterPicks.totals.worstDay && (
+                  <Card>
+                    <CardContent className="pt-6">
+                      <p className="text-xs text-muted-foreground">Worst Day</p>
+                      <p className="text-lg font-bold text-red-400">
+                        {formatCurrency(dumbHunterPicks.totals.worstDay.pnl)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{dumbHunterPicks.totals.worstDay.date}</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              {dumbHunterPicks.days.map((day) => (
+                <Card key={day.scanDate} className={cn(
+                  "border-l-4",
+                  day.dayPnl > 0 ? "border-l-emerald-500" : day.dayPnl < 0 ? "border-l-red-500" : "border-l-zinc-600"
+                )}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <CardTitle className="text-sm font-mono">{day.scanDate}</CardTitle>
+                        <span className="text-xs text-muted-foreground">trades {day.tradingDay}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {day.dayTrades > 0 && (
+                          <Badge variant={day.dayWins === day.dayTrades ? "success" : day.dayWins > 0 ? "warning" : "danger"}>
+                            {day.dayWins}/{day.dayTrades} wins
+                          </Badge>
+                        )}
+                        <span className={cn("font-mono font-bold", plClass(day.dayPnl))}>
+                          {formatCurrency(day.dayPnl)}
+                        </span>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-12">#</TableHead>
+                          <TableHead>Symbol</TableHead>
+                          <TableHead>Gap</TableHead>
+                          <TableHead>Side</TableHead>
+                          <TableHead>Entry</TableHead>
+                          <TableHead>Exit</TableHead>
+                          <TableHead>P/L</TableHead>
+                          <TableHead>P/L %</TableHead>
+                          <TableHead>Exit Reason</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {day.picks.map((pick, idx) => (
+                          <TableRow key={pick.symbol} className={cn(
+                            pick.isDumbHunterPick
+                              ? pick.trade && pick.trade.pnl > 0
+                                ? "bg-emerald-500/10 border-l-2 border-l-fuchsia-400"
+                                : pick.trade && pick.trade.pnl < 0
+                                  ? "bg-red-500/10 border-l-2 border-l-fuchsia-400"
+                                  : "border-l-2 border-l-fuchsia-400"
+                              : "opacity-40"
+                          )}>
+                            <TableCell className="font-bold text-muted-foreground">
+                              {pick.isDumbHunterPick ? (
+                                <Crosshair className="h-4 w-4 fill-fuchsia-400 text-fuchsia-400" />
+                              ) : idx + 1}
+                            </TableCell>
+                            <TableCell className="font-bold">
+                              <a
+                                href={`https://www.tradingview.com/chart/?symbol=${pick.symbol}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-fuchsia-400 underline decoration-dotted underline-offset-2 hover:text-fuchsia-300"
+                              >
+                                {pick.symbol}
+                              </a>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={pick.gapPercent >= 0 ? "success" : "danger"} className="font-semibold">
+                                {pick.gapPercent >= 0 ? "+" : ""}{pick.gapPercent.toFixed(1)}%
+                              </Badge>
+                            </TableCell>
+                            {pick.trade ? (
+                              <>
+                                <TableCell>
+                                  <Badge variant={pick.trade.side === "buy" ? "success" : "danger"}>
+                                    {pick.trade.side}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="font-mono">{formatCurrency(pick.trade.entryPrice)}</TableCell>
+                                <TableCell className="font-mono">{formatCurrency(pick.trade.exitPrice)}</TableCell>
+                                <TableCell className={cn("font-mono font-semibold", plClass(pick.trade.pnl))}>
+                                  {formatCurrency(pick.trade.pnl)}
+                                </TableCell>
+                                <TableCell className={cn("font-mono", plClass(pick.trade.pnlPercent))}>
+                                  {pick.trade.pnlPercent >= 0 ? "+" : ""}{pick.trade.pnlPercent.toFixed(2)}%
+                                </TableCell>
+                                <TableCell>{exitReasonBadge(pick.trade.exitReason)}</TableCell>
+                              </>
+                            ) : (
+                              <TableCell colSpan={6} className="text-xs text-muted-foreground italic">
+                                {pick.skippedReason || "No trade"}
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              ))}
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      {/* Dumb Hunter SWING backtest — multi-day holds, daily-close entries */}
+      <Card className="border-fuchsia-500/40">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Crosshair className="h-5 w-5 text-fuchsia-400" />
+              Dumb Hunter SWING — Multi-Day Holds
+            </CardTitle>
+            <Button
+              onClick={() => swingMut.mutate()}
+              disabled={!scanDate || swingMut.isPending}
+              className="bg-fuchsia-600 hover:bg-fuchsia-700"
+            >
+              {swingMut.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="mr-2 h-4 w-4" />
+              )}
+              {swingMut.isPending ? "Running..." : "Run Swing Backtest"}
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            DMC level reclaims on DAILY closes (monthly + weekly + daily pivot zone). Positions span many days; exit on stop / target / 20-day time-stop. This is the ~80%+ WR regime the author advocates.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div>
+              <Label htmlFor="swing-capital">Starting Capital ($)</Label>
+              <Input
+                id="swing-capital"
+                type="number"
+                value={swingCapital}
+                onChange={(e) => setSwingCapital(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="swing-weeks">Lookback (weeks)</Label>
+              <Input
+                id="swing-weeks"
+                type="number"
+                value={swingWeeks}
+                onChange={(e) => setSwingWeeks(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="swing-symbols">Watchlist (comma-separated)</Label>
+              <Input
+                id="swing-symbols"
+                value={swingSymbols}
+                onChange={(e) => setSwingSymbols(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {swingMut.isError && (
+            <p className="text-sm text-red-400">Failed: {swingMut.error.message}</p>
+          )}
+
+          {swingResult && (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+                <Card className="bg-fuchsia-500/5 border-fuchsia-500/20">
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Total P/L</p>
+                    <p className={cn("text-2xl font-bold", plClass(swingResult.totals.totalPnl))}>
+                      {formatCurrency(swingResult.totals.totalPnl)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{swingResult.totals.totalReturnPercent.toFixed(1)}% return</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Final Equity</p>
+                    <p className={cn("text-2xl font-bold", swingResult.totals.finalEquity >= swingResult.totals.startingCapital ? "text-emerald-400" : "text-red-400")}>
+                      {formatCurrency(swingResult.totals.finalEquity)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">from {formatCurrency(swingResult.totals.startingCapital)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Win Rate</p>
+                    <p className={cn("text-2xl font-bold", swingResult.totals.winRate >= 50 ? "text-emerald-400" : "text-red-400")}>
+                      {swingResult.totals.winRate.toFixed(1)}%
+                    </p>
+                    <p className="text-xs text-muted-foreground">{swingResult.totals.wins}W / {swingResult.totals.losses}L</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Trades</p>
+                    <p className="text-2xl font-bold">{swingResult.totals.totalTrades}</p>
+                    <p className="text-xs text-muted-foreground">avg hold {swingResult.totals.avgHoldDays}d</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Max Drawdown</p>
+                    <p className={cn("text-2xl font-bold", swingResult.totals.maxDrawdown > 20 ? "text-red-400" : "text-muted-foreground")}>
+                      {swingResult.totals.maxDrawdown.toFixed(1)}%
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Signals</p>
+                    <p className="text-2xl font-bold">{swingResult.totals.signalsGenerated}</p>
+                    <p className="text-xs text-muted-foreground">{swingResult.totals.signalsSkippedNoSlot} skipped (no slot)</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Per-symbol summary */}
+              {Object.keys(swingResult.bySymbol).length > 0 && (
+                <div>
+                  <h4 className="mb-2 text-sm font-semibold text-muted-foreground">Per-symbol breakdown</h4>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Symbol</TableHead>
+                        <TableHead className="text-right">Trades</TableHead>
+                        <TableHead className="text-right">Wins</TableHead>
+                        <TableHead className="text-right">Win %</TableHead>
+                        <TableHead className="text-right">P/L</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Object.entries(swingResult.bySymbol)
+                        .sort(([, a], [, b]) => b.pnl - a.pnl)
+                        .map(([sym, s]) => (
+                          <TableRow key={sym}>
+                            <TableCell className="font-bold">
+                              <a
+                                href={`https://www.tradingview.com/chart/?symbol=${sym}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-fuchsia-400 underline decoration-dotted underline-offset-2 hover:text-fuchsia-300"
+                              >
+                                {sym}
+                              </a>
+                            </TableCell>
+                            <TableCell className="text-right">{s.trades}</TableCell>
+                            <TableCell className="text-right">{s.wins}</TableCell>
+                            <TableCell className="text-right">
+                              {s.trades > 0 ? `${((s.wins / s.trades) * 100).toFixed(0)}%` : "—"}
+                            </TableCell>
+                            <TableCell className={cn("text-right font-mono", plClass(s.pnl))}>
+                              {formatCurrency(s.pnl)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              {/* Trade list */}
+              {swingResult.trades.length > 0 && (
+                <div>
+                  <h4 className="mb-2 text-sm font-semibold text-muted-foreground">Every trade (chronological)</h4>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Symbol</TableHead>
+                        <TableHead>Side</TableHead>
+                        <TableHead>Entry</TableHead>
+                        <TableHead>Exit</TableHead>
+                        <TableHead className="text-right">Hold</TableHead>
+                        <TableHead className="text-right">Entry $</TableHead>
+                        <TableHead className="text-right">Exit $</TableHead>
+                        <TableHead className="text-right">Shares</TableHead>
+                        <TableHead className="text-right">P/L</TableHead>
+                        <TableHead className="text-right">P/L %</TableHead>
+                        <TableHead>Why</TableHead>
+                        <TableHead className="text-right">Equity</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {swingResult.trades.map((t, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-bold">{t.symbol}</TableCell>
+                          <TableCell>
+                            <Badge variant={t.side === "buy" ? "success" : "danger"}>{t.side}</Badge>
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">{t.entryDate.split("T")[0]}</TableCell>
+                          <TableCell className="font-mono text-xs">{t.exitDate.split("T")[0]}</TableCell>
+                          <TableCell className="text-right">{t.holdDays}d</TableCell>
+                          <TableCell className="text-right font-mono">{formatCurrency(t.entryPrice)}</TableCell>
+                          <TableCell className="text-right font-mono">{formatCurrency(t.exitPrice)}</TableCell>
+                          <TableCell className="text-right">{t.shares}</TableCell>
+                          <TableCell className={cn("text-right font-mono font-semibold", plClass(t.pnl))}>
+                            {formatCurrency(t.pnl)}
+                          </TableCell>
+                          <TableCell className={cn("text-right font-mono", plClass(t.pnlPercent))}>
+                            {t.pnlPercent >= 0 ? "+" : ""}{t.pnlPercent.toFixed(1)}%
+                          </TableCell>
+                          <TableCell>{exitReasonBadge(t.exitReason)}</TableCell>
+                          <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                            {formatCurrency(t.equityAfter)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Claude HYBRID — swing-primary + intraday-blend combined portfolio */}
+      <Card className="border-blue-500/50 ring-1 ring-blue-500/20">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Brain className="h-5 w-5 text-blue-400" />
+              Claude HYBRID — Swing + Intraday
+            </CardTitle>
+            <Button
+              onClick={() => hybridMut.mutate()}
+              disabled={!scanDate || hybridMut.isPending}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {hybridMut.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="mr-2 h-4 w-4" />
+              )}
+              {hybridMut.isPending ? "Running..." : "Run Claude Hybrid"}
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Two-layer portfolio: DumbHunter SWING reclaims (primary edge, multi-day holds on the watchlist) + the intraday author blend (Emanuel + DH + ProRealAlgos + Fabio) fills quiet days with gap plays. Shared equity pool.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <div>
+              <Label htmlFor="hybrid-capital">Capital ($)</Label>
+              <Input id="hybrid-capital" type="number" value={hybridCapital} onChange={(e) => setHybridCapital(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="hybrid-weeks">Lookback (weeks)</Label>
+              <Input id="hybrid-weeks" type="number" value={hybridWeeks} onChange={(e) => setHybridWeeks(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="hybrid-max-swing">Max swing open</Label>
+              <Input id="hybrid-max-swing" type="number" value={hybridMaxSwing} onChange={(e) => setHybridMaxSwing(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="hybrid-max-intraday">Max intraday/day</Label>
+              <Input id="hybrid-max-intraday" type="number" value={hybridMaxIntraday} onChange={(e) => setHybridMaxIntraday(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="hybrid-symbols">Swing watchlist</Label>
+              <Input id="hybrid-symbols" value={hybridSymbols} onChange={(e) => setHybridSymbols(e.target.value)} />
+            </div>
+          </div>
+
+          {hybridMut.isError && (
+            <p className="text-sm text-red-400">Failed: {hybridMut.error.message}</p>
+          )}
+
+          {hybridResult && (
+            <div className="space-y-4">
+              {/* Top summary */}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+                <Card className="bg-blue-500/5 border-blue-500/20">
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Total P/L</p>
+                    <p className={cn("text-2xl font-bold", plClass(hybridResult.totals.totalPnl))}>
+                      {formatCurrency(hybridResult.totals.totalPnl)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{hybridResult.totals.totalReturnPercent.toFixed(1)}% return</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Final Equity</p>
+                    <p className={cn("text-2xl font-bold", hybridResult.totals.finalEquity >= hybridResult.totals.startingCapital ? "text-emerald-400" : "text-red-400")}>
+                      {formatCurrency(hybridResult.totals.finalEquity)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">from {formatCurrency(hybridResult.totals.startingCapital)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Win Rate</p>
+                    <p className={cn("text-2xl font-bold", hybridResult.totals.winRate >= 50 ? "text-emerald-400" : "text-red-400")}>
+                      {hybridResult.totals.winRate.toFixed(1)}%
+                    </p>
+                    <p className="text-xs text-muted-foreground">{hybridResult.totals.wins}W / {hybridResult.totals.losses}L</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Trades</p>
+                    <p className="text-2xl font-bold">{hybridResult.totals.totalTrades}</p>
+                    <p className="text-xs text-muted-foreground">avg hold {hybridResult.totals.avgHoldDays}d</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Max Drawdown</p>
+                    <p className={cn("text-2xl font-bold", hybridResult.totals.maxDrawdown > 20 ? "text-red-400" : "text-muted-foreground")}>
+                      {hybridResult.totals.maxDrawdown.toFixed(1)}%
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Swing Signals</p>
+                    <p className="text-2xl font-bold">{hybridResult.totals.swingSignals}</p>
+                    <p className="text-xs text-muted-foreground">{hybridResult.totals.swingSignalsSkippedNoSlot} no slot</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Layer breakdown */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Card className="border-fuchsia-500/30 bg-fuchsia-500/5">
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">SWING Layer</p>
+                    <p className={cn("text-xl font-bold", plClass(hybridResult.byLayer.swing.pnl))}>
+                      {formatCurrency(hybridResult.byLayer.swing.pnl)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {hybridResult.byLayer.swing.trades} trades · {hybridResult.byLayer.swing.wins}W /
+                      {" "}{hybridResult.byLayer.swing.trades - hybridResult.byLayer.swing.wins}L
+                      {hybridResult.byLayer.swing.trades > 0
+                        ? ` · ${((hybridResult.byLayer.swing.wins / hybridResult.byLayer.swing.trades) * 100).toFixed(0)}% WR`
+                        : ""}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card className="border-amber-500/30 bg-amber-500/5">
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">INTRADAY Layer</p>
+                    <p className={cn("text-xl font-bold", plClass(hybridResult.byLayer.intraday.pnl))}>
+                      {formatCurrency(hybridResult.byLayer.intraday.pnl)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {hybridResult.byLayer.intraday.trades} trades · {hybridResult.byLayer.intraday.wins}W /
+                      {" "}{hybridResult.byLayer.intraday.trades - hybridResult.byLayer.intraday.wins}L
+                      {hybridResult.byLayer.intraday.trades > 0
+                        ? ` · ${((hybridResult.byLayer.intraday.wins / hybridResult.byLayer.intraday.trades) * 100).toFixed(0)}% WR`
+                        : ""}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Per-symbol */}
+              {Object.keys(hybridResult.bySymbol).length > 0 && (
+                <div>
+                  <h4 className="mb-2 text-sm font-semibold text-muted-foreground">Per-symbol breakdown</h4>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Symbol</TableHead>
+                        <TableHead className="text-right">Trades</TableHead>
+                        <TableHead className="text-right">Wins</TableHead>
+                        <TableHead className="text-right">Win %</TableHead>
+                        <TableHead className="text-right">P/L</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Object.entries(hybridResult.bySymbol)
+                        .sort(([, a], [, b]) => b.pnl - a.pnl)
+                        .map(([sym, s]) => (
+                          <TableRow key={sym}>
+                            <TableCell className="font-bold">{sym}</TableCell>
+                            <TableCell className="text-right">{s.trades}</TableCell>
+                            <TableCell className="text-right">{s.wins}</TableCell>
+                            <TableCell className="text-right">
+                              {s.trades > 0 ? `${((s.wins / s.trades) * 100).toFixed(0)}%` : "—"}
+                            </TableCell>
+                            <TableCell className={cn("text-right font-mono", plClass(s.pnl))}>
+                              {formatCurrency(s.pnl)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              {/* Trade list */}
+              {hybridResult.trades.length > 0 && (
+                <div>
+                  <h4 className="mb-2 text-sm font-semibold text-muted-foreground">Every trade (chronological)</h4>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Symbol</TableHead>
+                        <TableHead>Side</TableHead>
+                        <TableHead>Entry</TableHead>
+                        <TableHead>Exit</TableHead>
+                        <TableHead className="text-right">Hold</TableHead>
+                        <TableHead className="text-right">Entry $</TableHead>
+                        <TableHead className="text-right">Exit $</TableHead>
+                        <TableHead className="text-right">P/L</TableHead>
+                        <TableHead className="text-right">P/L %</TableHead>
+                        <TableHead>Why</TableHead>
+                        <TableHead className="text-right">Equity</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {hybridResult.trades.map((t, i) => (
+                        <TableRow key={i}>
+                          <TableCell>
+                            <Badge variant={t.tradeType === "swing" ? "secondary" : "warning"}>
+                              {t.tradeType === "swing" ? "Swing" : "Intraday"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-bold">{t.symbol}</TableCell>
+                          <TableCell>
+                            <Badge variant={t.side === "buy" ? "success" : "danger"}>{t.side}</Badge>
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">{t.entryDate.split("T")[0]}</TableCell>
+                          <TableCell className="font-mono text-xs">{t.exitDate.split("T")[0]}</TableCell>
+                          <TableCell className="text-right">{t.holdDays}d</TableCell>
+                          <TableCell className="text-right font-mono">{formatCurrency(t.entryPrice)}</TableCell>
+                          <TableCell className="text-right font-mono">{formatCurrency(t.exitPrice)}</TableCell>
+                          <TableCell className={cn("text-right font-mono font-semibold", plClass(t.pnl))}>
+                            {formatCurrency(t.pnl)}
+                          </TableCell>
+                          <TableCell className={cn("text-right font-mono", plClass(t.pnlPercent))}>
+                            {t.pnlPercent >= 0 ? "+" : ""}{t.pnlPercent.toFixed(1)}%
+                          </TableCell>
+                          <TableCell>{exitReasonBadge(t.exitReason)}</TableCell>
+                          <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                            {formatCurrency(t.equityAfter)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Claude's Top Picks with Running Balance */}
       {scanDate && (
@@ -1522,6 +2219,91 @@ function BacktestPage() {
             </Card>
           )}
         </>
+      )}
+
+      {/* Weekly Strategy Comparison — 10 weeks, Mon-Fri, fresh capital each day */}
+      {scanDate && (
+        <Card className="border-indigo-500/30">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <BarChart3 className="h-5 w-5 text-indigo-400" />
+                Weekly Strategy Comparison — 10 Weeks
+              </CardTitle>
+              <Button
+                onClick={() => weeklyMut.mutate()}
+                disabled={!scanDate || weeklyMut.isPending}
+                className="bg-indigo-600 hover:bg-indigo-700"
+              >
+                {weeklyMut.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="mr-2 h-4 w-4" />
+                )}
+                {weeklyMut.isPending ? "Running..." : "Run Weekly Comparison"}
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              10 full weeks (Mon–Fri) ending on the most recent Friday ≤ {scanDate}. Each day starts fresh with ${dailyBudget} capital. Each cell is the week's total P/L for that strategy.
+            </p>
+          </CardHeader>
+          {weeklyMut.isError && (
+            <CardContent>
+              <p className="text-sm text-red-400">Failed: {weeklyMut.error.message}</p>
+            </CardContent>
+          )}
+          {weeklyResult && (
+            <CardContent className="pt-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Week</TableHead>
+                    <TableHead className="text-right">Days</TableHead>
+                    {Object.keys(weeklyResult.totals).map((name) => (
+                      <TableHead key={name} className="text-right">{name}</TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {weeklyResult.weeks.map((week) => (
+                    <TableRow key={week.weekStart}>
+                      <TableCell className="font-mono text-xs">
+                        {week.weekStart} → {week.weekEnd}
+                      </TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">
+                        {week.daysTraded}/5
+                      </TableCell>
+                      {Object.entries(week.strategies).map(([name, stats]) => (
+                        <TableCell
+                          key={name}
+                          className={cn("text-right font-mono", plClass(stats.pnl))}
+                        >
+                          {stats.trades > 0 ? formatCurrency(stats.pnl) : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                  {/* Totals row */}
+                  <TableRow className="border-t-2 border-t-indigo-500/40 bg-indigo-500/5 font-semibold">
+                    <TableCell className="font-mono text-xs">10-week total</TableCell>
+                    <TableCell />
+                    {Object.entries(weeklyResult.totals).map(([name, tot]) => (
+                      <TableCell
+                        key={name}
+                        className={cn("text-right font-mono", plClass(tot.pnl))}
+                      >
+                        <div>{formatCurrency(tot.pnl)}</div>
+                        <div className="text-xs text-muted-foreground font-normal">
+                          {tot.wins}W/{tot.trades - tot.wins}L · {tot.winRate.toFixed(0)}%
+                        </div>
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </CardContent>
+          )}
+        </Card>
       )}
 
       {/* History */}

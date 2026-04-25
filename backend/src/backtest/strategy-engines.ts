@@ -8,7 +8,7 @@
 
 import type { SimulatedTrade, BarData, StockSetup } from './backtest.service';
 
-interface SimResult {
+export interface SimResult {
   trades: SimulatedTrade[];
   totalPnl: number;
   winRate: number;
@@ -636,6 +636,89 @@ export function simulateEmanuel(
 // 6. Target 1: back to breached S/R level
 // 7. Target 2: back to previous close (full gap fill)
 
+/** Aggregate daily bars into weekly bars, keyed by the Monday of each week. */
+function resampleToWeekly(dailyBars: BarData[]): BarData[] {
+  const byWeek = new Map<string, BarData[]>();
+  for (const bar of dailyBars) {
+    const d = new Date(bar.timestamp);
+    // Monday of this week (UTC). getUTCDay(): Sun=0..Sat=6. Shift so Mon=0.
+    const weekdayFromMon = (d.getUTCDay() + 6) % 7;
+    const monday = new Date(d);
+    monday.setUTCDate(d.getUTCDate() - weekdayFromMon);
+    const key = monday.toISOString().split('T')[0];
+    const arr = byWeek.get(key);
+    if (arr) arr.push(bar); else byWeek.set(key, [bar]);
+  }
+  const keys = [...byWeek.keys()].sort();
+  return keys.map((k) => {
+    const w = byWeek.get(k)!;
+    w.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    return {
+      timestamp: w[0].timestamp,
+      open: w[0].open,
+      close: w[w.length - 1].close,
+      high: Math.max(...w.map((b) => b.high)),
+      low: Math.min(...w.map((b) => b.low)),
+      volume: w.reduce((s, b) => s + b.volume, 0),
+    };
+  });
+}
+
+/** Aggregate daily bars into monthly bars, keyed by YYYY-MM. */
+function resampleToMonthly(dailyBars: BarData[]): BarData[] {
+  const byMonth = new Map<string, BarData[]>();
+  for (const bar of dailyBars) {
+    const d = new Date(bar.timestamp);
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+    const arr = byMonth.get(key);
+    if (arr) arr.push(bar); else byMonth.set(key, [bar]);
+  }
+  const keys = [...byMonth.keys()].sort();
+  return keys.map((k) => {
+    const m = byMonth.get(k)!;
+    m.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    return {
+      timestamp: m[0].timestamp,
+      open: m[0].open,
+      close: m[m.length - 1].close,
+      high: Math.max(...m.map((b) => b.high)),
+      low: Math.min(...m.map((b) => b.low)),
+      volume: m.reduce((s, b) => s + b.volume, 0),
+    };
+  });
+}
+
+/**
+ * Build DMC body-pivot levels from any bar series. Each pivot (swing high or low)
+ * contributes both body-open AND body-close as separate levels when
+ * includeBothSides is true (per transcript 16). Otherwise uses the body extreme.
+ */
+function buildBodyPivotLevels(
+  bars: BarData[],
+  lookback: number,
+  includeBothSides: boolean,
+): number[] {
+  const out: number[] = [];
+  if (bars.length < lookback * 2 + 1) return out;
+  for (let i = lookback; i < bars.length - lookback; i++) {
+    let isHigh = true;
+    let isLow = true;
+    for (let j = 1; j <= lookback; j++) {
+      if (bars[i - j].high > bars[i].high || bars[i + j].high > bars[i].high) isHigh = false;
+      if (bars[i - j].low < bars[i].low || bars[i + j].low < bars[i].low) isLow = false;
+    }
+    if (!isHigh && !isLow) continue;
+    const b = bars[i];
+    if (includeBothSides) {
+      out.push(b.open, b.close);
+    } else {
+      if (isHigh) out.push(Math.max(b.open, b.close));
+      if (isLow) out.push(Math.min(b.open, b.close));
+    }
+  }
+  return out;
+}
+
 /** Find swing lows from daily bars (a swing low has higher bars on both sides). */
 function findSwingLows(dailyBars: BarData[], lookback: number): number[] {
   const levels: number[] = [];
@@ -669,38 +752,69 @@ function findSwingHighs(dailyBars: BarData[], lookback: number): number[] {
 }
 
 export interface ClaudeParams {
+  /** Max trades per day across all authors — hard cap on Claude's risk deployment. */
   maxTradesPerDay: number;
+  /** Max daily loss as % of capital. When hit, no new trades today. */
+  maxDailyLossPercent: number;
+  /** Minimum conviction (# of authors agreeing) to take a trade. 1 = take any single signal. */
+  minConviction: number;
+  /** When 2+ authors agree, how much to prefer that trade over a single-author signal. */
+  convictionBonus: number;
+  /**
+   * Legacy fields — retained for back-compat with the optimiser and older calls.
+   * The blend engine ignores these because sizing/management is now delegated
+   * to each contributing sub-engine.
+   */
   entryWindowBars: number;
   trailActivateRR: number;
   partialProfitRR: number;
   partialProfitPercent: number;
-  maxDailyLossPercent: number;
   eodTightenBar: number;
 }
 
 export const CLAUDE_DEFAULT_PARAMS: ClaudeParams = {
   maxTradesPerDay: 3,
-  entryWindowBars: 24,    // 2 hours
+  maxDailyLossPercent: 6,
+  minConviction: 1,
+  convictionBonus: 10,
+  // Legacy — unused by blend, kept so optimiser & existing call-sites still compile
+  entryWindowBars: 24,
   trailActivateRR: 1.5,
   partialProfitRR: 2.0,
   partialProfitPercent: 50,
-  maxDailyLossPercent: 6,
-  eodTightenBar: 72,      // last 30 min (bar 72 of 78)
+  eodTightenBar: 72,
 };
 
 // ═══════════════════════════════════════════════════════════════
-//  CLAUDE'S ENGINE — Enhanced Gap Strategy
+//  CLAUDE'S ENGINE — Author Blend / Meta-Allocator
 // ═══════════════════════════════════════════════════════════════
 //
-// Built on Emanuel's rules but optimised for $1,000 capital → $50/day:
+// Claude no longer runs its own entry detection. It orchestrates the other
+// author engines and picks the best ex-ante setups across all of them.
 //
-// 1. UP TO 3 TRADES/DAY — if #1 stops out, take #2 from watchlist
-// 2. SCORE-WEIGHTED SIZING — more risk on high-conviction setups
-// 3. EXTENDED ENTRY WINDOW — 2 hours not 1
-// 4. FASTER TRAIL — activate at 1.5R not 2R
-// 5. PARTIAL PROFITS — take 50% at 2R, trail rest
-// 6. RE-ENTRY — if stopped out, 20MA retrace = new entry
-// 7. EOD TIGHTENING — 1-bar trail in last 30 min
+// FLOW (per day):
+//   1. Run Emanuel, Dumb Hunter, ProRealAlgos, and Fabio on the same setups.
+//   2. Collect every resulting trade, tagged with its originating author.
+//   3. Group by (symbol, direction). CONVICTION = # distinct authors agreeing.
+//   4. For each symbol, pick the best trade:
+//        - Highest conviction wins
+//        - Tiebreak 1: highest gap score (setup.score)
+//        - Tiebreak 2: earliest entry timestamp
+//   5. Sort picks by a blended rank (conviction * convictionBonus + gapScore).
+//   6. Apply Claude's overlay:
+//        - Stop at maxTradesPerDay
+//        - Stop if cumulative losses exceed maxDailyLossPercent of capital
+//
+// Each kept trade uses the originating engine's own position sizing and
+// management (partial profits, trailing, EOD tightening). Claude is a
+// meta-allocator: it picks WHICH engine's playbook to follow for each stock,
+// not the specific entries/exits — those are borrowed from the underlying
+// author that produced the signal.
+//
+// Why: the individual author edges (ORB manipulation, DMC reclaim, gap
+// scalp 1-2-3, absorption momentum) catch different regimes. A single-
+// author engine misses setups that belong to another's wheelhouse. The
+// blend lets Claude be regime-adaptive without hand-coding a regime detector.
 
 export function simulateClaude(
   setups: StockSetup[],
@@ -712,318 +826,171 @@ export function simulateClaude(
   let maxEquity = equity;
   let maxDrawdown = 0;
   const trades: SimulatedTrade[] = [];
-  let skippedStocks = 0;
   const skippedReasons: string[] = [];
+  let skippedStocks = 0;
 
-  // Sort by score descending — trade best setups first
-  const sorted = [...setups].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  if (setups.length === 0) {
+    return {
+      trades: [], totalPnl: 0, winRate: 0, maxDrawdown: 0, finalEquity: equity,
+      entryMethod: 'Blend: no setups to evaluate',
+      skippedStocks: 0, skippedReasons: [],
+    };
+  }
 
-  let tradesThisDay = 0;
-  let dailyLoss = 0;
+  // Run each author on the full setup list. Wrapped in try/catch so one
+  // misbehaving engine can't take down the blend.
+  const runEngine = (name: string, fn: () => SimResult): { engine: string; trades: SimulatedTrade[] } => {
+    try {
+      const r = fn();
+      return { engine: name, trades: r.trades };
+    } catch (err: any) {
+      skippedReasons.push(`[blend] ${name} engine failed: ${err?.message ?? err}`);
+      return { engine: name, trades: [] };
+    }
+  };
+
+  const emanuelResult = runEngine('Emanuel', () => simulateEmanuel(setups, capital));
+  const dumbHunterResult = runEngine('DumbHunter', () => simulateDumbHunter(setups, capital));
+  const proRealResult = runEngine('ProRealAlgos', () => simulateProRealAlgos(setups, capital));
+  const fabioResult = runEngine('Fabio', () => simulateFabio(setups, capital));
+
+  // Flatten all candidate trades, tagged with their originating engine.
+  type Candidate = { engine: string; trade: SimulatedTrade; score: number };
+  const candidates: Candidate[] = [];
+  const scoreBySymbol = new Map<string, number>();
+  for (const s of setups) scoreBySymbol.set(s.symbol, s.score ?? 0);
+
+  const pushAll = (engine: string, ts: SimulatedTrade[]) => {
+    for (const t of ts) {
+      if (!t.symbol) continue;
+      candidates.push({ engine, trade: t, score: scoreBySymbol.get(t.symbol) ?? 0 });
+    }
+  };
+  pushAll(emanuelResult.engine, emanuelResult.trades);
+  pushAll(dumbHunterResult.engine, dumbHunterResult.trades);
+  pushAll(proRealResult.engine, proRealResult.trades);
+  pushAll(fabioResult.engine, fabioResult.trades);
+
+  if (candidates.length === 0) {
+    return {
+      trades: [], totalPnl: 0, winRate: 0, maxDrawdown: 0, finalEquity: equity,
+      entryMethod: 'Blend: no author found a tradable setup',
+      skippedStocks: setups.length,
+      skippedReasons: ['All authors passed on every setup'],
+    };
+  }
+
+  // Group by (symbol, direction). Conviction = # distinct engines agreeing.
+  type Group = {
+    symbol: string;
+    side: 'buy' | 'sell';
+    engines: Set<string>;
+    best: Candidate;
+  };
+  const groupKey = (symbol: string, side: string) => `${symbol}::${side}`;
+  const groups = new Map<string, Group>();
+
+  for (const c of candidates) {
+    const key = groupKey(c.trade.symbol!, c.trade.side);
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, {
+        symbol: c.trade.symbol!,
+        side: c.trade.side,
+        engines: new Set([c.engine]),
+        best: c,
+      });
+      continue;
+    }
+    existing.engines.add(c.engine);
+    // Tiebreak among candidates within the same group: prefer highest gap score,
+    // then earliest entry (ex-ante — NOT by pnl, to avoid hindsight bias).
+    const existingDate = new Date(existing.best.trade.date).getTime();
+    const newDate = new Date(c.trade.date).getTime();
+    if (c.score > existing.best.score
+      || (c.score === existing.best.score && newDate < existingDate)) {
+      existing.best = c;
+    }
+  }
+
+  // If the same symbol has long AND short signals from different authors,
+  // that's a contradictory read → skip it.
+  const symbolDirections = new Map<string, Set<string>>();
+  for (const g of groups.values()) {
+    if (!symbolDirections.has(g.symbol)) symbolDirections.set(g.symbol, new Set());
+    symbolDirections.get(g.symbol)!.add(g.side);
+  }
+  const contested = new Set<string>();
+  for (const [sym, dirs] of symbolDirections) {
+    if (dirs.size > 1) contested.add(sym);
+  }
+
+  // Build the pick list: filter contested symbols and below-conviction groups.
+  const picks = [...groups.values()]
+    .filter((g) => {
+      if (contested.has(g.symbol)) {
+        skippedReasons.push(`${g.symbol}: Conflicting long/short signals — blend passes`);
+        return false;
+      }
+      if (g.engines.size < p.minConviction) {
+        skippedReasons.push(`${g.symbol}: Conviction ${g.engines.size} < min ${p.minConviction}`);
+        return false;
+      }
+      return true;
+    })
+    .map((g) => ({
+      ...g,
+      rank: g.engines.size * p.convictionBonus + g.best.score,
+    }))
+    .sort((a, b) => b.rank - a.rank);
+
+  // Apply Claude's overlay: max trades/day, daily loss cap.
   const maxDailyLoss = capital * (p.maxDailyLossPercent / 100);
+  let dailyLoss = 0;
+  let taken = 0;
 
-  for (const setup of sorted) {
-    // Daily limits
-    if (tradesThisDay >= p.maxTradesPerDay) {
+  for (const pick of picks) {
+    if (taken >= p.maxTradesPerDay) {
       skippedStocks++;
-      skippedReasons.push(`${setup.symbol}: Max ${p.maxTradesPerDay} trades/day reached`);
+      skippedReasons.push(`${pick.symbol}: Max ${p.maxTradesPerDay} trades/day reached (skipped conviction ${pick.engines.size})`);
       continue;
     }
     if (dailyLoss >= maxDailyLoss) {
       skippedStocks++;
-      skippedReasons.push(`${setup.symbol}: Daily loss limit hit ($${dailyLoss.toFixed(0)}/$${maxDailyLoss.toFixed(0)})`);
+      skippedReasons.push(`${pick.symbol}: Daily loss cap hit ($${dailyLoss.toFixed(0)}/$${maxDailyLoss.toFixed(0)})`);
       continue;
     }
 
-    const { bars, isGapUp, side, gapPercent, symbol } = setup;
-    const score = setup.score ?? 0;
-
-    // Filters — quality over quantity
-    if (score < 40) {
-      skippedStocks++;
-      skippedReasons.push(`${symbol}: Score ${score} too low (need 40+)`);
-      continue;
-    }
-    if (setup.dailyContext === 'other') {
-      skippedStocks++;
-      skippedReasons.push(`${symbol}: No daily context`);
-      continue;
-    }
-    if (setup.trendDirection === 'sideways') {
-      skippedStocks++;
-      skippedReasons.push(`${symbol}: Flat 20MA`);
-      continue;
-    }
-    // Minimum price $2 — avoid penny stocks with bad spreads
-    if (bars[0].open < 2) {
-      skippedStocks++;
-      skippedReasons.push(`${symbol}: Price $${bars[0].open.toFixed(2)} too low`);
-      continue;
-    }
-    // Minimum gap 5% — need explosive movers
-    if (Math.abs(gapPercent) < 5) {
-      skippedStocks++;
-      skippedReasons.push(`${symbol}: Gap ${gapPercent.toFixed(1)}% too small`);
-      continue;
-    }
-    if (bars.length < 6) {
-      skippedStocks++;
-      skippedReasons.push(`${symbol}: Not enough bars`);
-      continue;
-    }
-
-    // Score-weighted risk sizing
-    let riskPercent: number;
-    if (score >= 60) riskPercent = 0.03;       // 3% on high conviction
-    else if (score >= 40) riskPercent = 0.02;   // 2% standard
-    else riskPercent = 0.015;                    // 1.5% on marginal
-    const maxRisk = capital * riskPercent;
-
-    const { ma20: resolvedMA20, ma200: resolvedMA200 } = fillMAs(setup);
-    const has200MA = resolvedMA200 != null && resolvedMA200 > 0;
-    const openPrice = bars[0].open;
-
-    let directionConfirmed = true;
-    if (has200MA) {
-      if (isGapUp && openPrice < resolvedMA200!) directionConfirmed = false;
-      if (!isGapUp && openPrice > resolvedMA200!) directionConfirmed = false;
-    }
-
-    // Intraday 20MA (proper 20-period)
-    const closes = bars.map(b => b.close);
-    const intraday20MA: (number | null)[] = closes.map((_, i) => sma(closes, i, 20));
-
-    // ── ENTRY METHODS — extended 2-hour window ──
-    const searchLimit = Math.min(bars.length, p.entryWindowBars);
-
-    let entryPrice: number | null = null;
-    let stopLevel: number | null = null;
-    let entryBarIndex = -1;
-    let entryMethodUsed = '';
-
-    // METHOD 1: ORB
-    const orbBar = bars[0];
-    const orbRangePct = (orbBar.high - orbBar.low) / orbBar.open * 100;
-    if (orbRangePct <= 3) {
-      const orbEntry = isGapUp ? orbBar.high : orbBar.low;
-      const orbStop = isGapUp ? orbBar.low : orbBar.high;
-      for (let i = 1; i < Math.min(searchLimit, 4); i++) {
-        if (isGapUp && bars[i].high >= orbEntry) {
-          entryPrice = orbEntry; stopLevel = orbStop;
-          entryBarIndex = i; entryMethodUsed = 'ORB'; break;
-        }
-        if (!isGapUp && bars[i].low <= orbEntry) {
-          entryPrice = orbEntry; stopLevel = orbStop;
-          entryBarIndex = i; entryMethodUsed = 'ORB'; break;
-        }
-      }
-    }
-
-    // METHOD 2: 1-2-3 Pattern
-    if (entryPrice === null) {
-      for (let i = 0; i < searchLimit - 2; i++) {
-        const ig = bars[i], re = bars[i + 1], tr = bars[i + 2];
-        if (isGapUp && ig.close > ig.open && isMomentumBar(ig) && (isDoji(re) || hasBottomingTail(re))) {
-          if (tr.high >= re.high) {
-            entryPrice = re.high; stopLevel = re.low;
-            entryBarIndex = i + 2; entryMethodUsed = '1-2-3'; break;
-          }
-        }
-        if (!isGapUp && ig.close < ig.open && isMomentumBar(ig) && (isDoji(re) || hasToppingTail(re))) {
-          if (tr.low <= re.low) {
-            entryPrice = re.low; stopLevel = re.high;
-            entryBarIndex = i + 2; entryMethodUsed = '1-2-3'; break;
-          }
-        }
-      }
-    }
-
-    // METHOD 3: 20MA Retracement (extended window)
-    if (entryPrice === null) {
-      for (let i = 4; i < searchLimit; i++) {
-        const bar = bars[i], ma = intraday20MA[i];
-        if (ma === null) continue;
-        if (isGapUp) {
-          if (bar.low <= ma * 1.003 && bar.close > ma && (hasBottomingTail(bar) || isDoji(bar))) {
-            entryPrice = bar.close; stopLevel = bar.low;
-            entryBarIndex = i; entryMethodUsed = '20MA Retrace'; break;
-          }
-        } else {
-          if (bar.high >= ma * 0.997 && bar.close < ma && (hasToppingTail(bar) || isDoji(bar))) {
-            entryPrice = bar.close; stopLevel = bar.high;
-            entryBarIndex = i; entryMethodUsed = '20MA Retrace'; break;
-          }
-        }
-      }
-    }
-
-    // METHOD 4: Base breakout into 20MA
-    if (entryPrice === null) {
-      for (let i = 3; i < searchLimit; i++) {
-        const ma = intraday20MA[i];
-        if (ma === null || i + 1 >= bars.length) continue;
-        const prevBars = bars.slice(Math.max(0, i - 2), i + 1);
-        const baseHigh = Math.max(...prevBars.map(b => b.high));
-        const baseLow = Math.min(...prevBars.map(b => b.low));
-        if ((baseHigh - baseLow) / baseLow * 100 < 2) {
-          const next = bars[i + 1];
-          if (isGapUp && Math.abs(baseLow - ma) / ma < 0.01 && next.high > baseHigh) {
-            entryPrice = baseHigh; stopLevel = baseLow;
-            entryBarIndex = i + 1; entryMethodUsed = 'Base Breakout'; break;
-          }
-          if (!isGapUp && Math.abs(baseHigh - ma) / ma < 0.01 && next.low < baseLow) {
-            entryPrice = baseLow; stopLevel = baseHigh;
-            entryBarIndex = i + 1; entryMethodUsed = 'Base Breakout'; break;
-          }
-        }
-      }
-    }
-
-    if (entryPrice === null || stopLevel === null) {
-      skippedStocks++;
-      skippedReasons.push(`${symbol}: No entry in 2-hour window`);
-      continue;
-    }
-
-    const riskPerShare = Math.abs(entryPrice - stopLevel);
-    if (riskPerShare <= 0) {
-      skippedStocks++;
-      skippedReasons.push(`${symbol}: Zero risk`);
-      continue;
-    }
-
-    // Position sizing based on risk
-    let shares = Math.floor(maxRisk / riskPerShare);
-    if (shares <= 0) {
-      skippedStocks++;
-      skippedReasons.push(`${symbol}: Stop too wide for risk budget`);
-      continue;
-    }
-
-    // ── TRADE MANAGEMENT — full day with partial profits ──
-    let exitPrice: number | null = null;
-    let exitReason: SimulatedTrade['exitReason'] = 'end_of_day';
-    let trailingStop = stopLevel;
-    let trailingActive = false;
-    let tightTrailActive = false;
-    let barsSinceTrailUpdate = 0;
-    let partialTaken = false;
-    let remainingShares = shares;
-
-    let partialPnl = 0;
-
-    for (let i = entryBarIndex; i < bars.length; i++) {
-      const bar = bars[i];
-
-      // Stop / trailing stop check
-      if (isGapUp && bar.low <= trailingStop) {
-        exitPrice = trailingStop;
-        exitReason = trailingActive ? 'take_profit' : 'stop_loss';
-        break;
-      }
-      if (!isGapUp && bar.high >= trailingStop) {
-        exitPrice = trailingStop;
-        exitReason = trailingActive ? 'take_profit' : 'stop_loss';
-        break;
-      }
-
-      // 200MA exit when direction not confirmed
-      if (has200MA && !directionConfirmed) {
-        if (isGapUp && bar.high >= resolvedMA200!) {
-          exitPrice = resolvedMA200!; exitReason = 'take_profit'; break;
-        }
-        if (!isGapUp && bar.low <= resolvedMA200!) {
-          exitPrice = resolvedMA200!; exitReason = 'take_profit'; break;
-        }
-      }
-
-      const currentPnl = isGapUp ? bar.close - entryPrice : entryPrice - bar.close;
-      const currentRR = currentPnl / riskPerShare;
-
-      // Activate trailing at 1.5R (faster than Emanuel's 2R)
-      if (!trailingActive && currentRR >= p.trailActivateRR) {
-        trailingActive = true;
-        barsSinceTrailUpdate = 0;
-      }
-
-      // Partial profit at 2R — take 50%, trail the rest
-      if (!partialTaken && currentRR >= p.partialProfitRR) {
-        const partialShares = Math.floor(remainingShares * (p.partialProfitPercent / 100));
-        if (partialShares > 0) {
-          const mult = isGapUp ? 1 : -1;
-          partialPnl += (bar.close - entryPrice) * mult * partialShares;
-          remainingShares -= partialShares;
-          partialTaken = true;
-        }
-      }
-
-      // Tighten trail at 4R
-      if (trailingActive && !tightTrailActive && currentRR >= 4) {
-        tightTrailActive = true;
-        barsSinceTrailUpdate = 0;
-      }
-
-      // EOD tightening — 1-bar trail in last 30 min regardless
-      const isEOD = i >= p.eodTightenBar;
-      if (isEOD && !tightTrailActive) {
-        tightTrailActive = true;
-        barsSinceTrailUpdate = 0;
-      }
-
-      // Update trailing stop
-      if (trailingActive) {
-        barsSinceTrailUpdate++;
-        const interval = tightTrailActive ? 1 : 3;
-        if (barsSinceTrailUpdate >= interval) {
-          barsSinceTrailUpdate = 0;
-          if (isGapUp) {
-            if (bar.low > trailingStop) trailingStop = bar.low;
-          } else {
-            if (bar.high < trailingStop) trailingStop = bar.high;
-          }
-        }
-      }
-    }
-
-    // End of day
-    if (exitPrice === null) {
-      exitPrice = bars[bars.length - 1].close;
-      exitReason = 'end_of_day';
-    }
-
-    // Calculate P/L including partial profit
-    const multiplier = isGapUp ? 1 : -1;
-    const remainingPnl = (exitPrice - entryPrice) * multiplier * remainingShares;
-    const totalTradePnl = partialPnl + remainingPnl;
-    const pnlPercent = ((exitPrice - entryPrice) * multiplier / entryPrice) * 100;
-
-    equity += totalTradePnl;
-    maxEquity = Math.max(maxEquity, equity);
-    const drawdown = ((maxEquity - equity) / maxEquity) * 100;
-    maxDrawdown = Math.max(maxDrawdown, drawdown);
-
-    if (totalTradePnl < 0) dailyLoss += Math.abs(totalTradePnl);
-
+    const t = pick.best.trade;
     trades.push({
-      date: bars[0].timestamp,
-      symbol,
-      entryPrice,
-      exitPrice,
-      pnl: totalTradePnl,
-      pnlPercent,
-      side,
-      exitReason,
-      shares,
-      gapPercent,
-      equityAfter: equity,
+      ...t,
+      // stamp with blend diagnostics in exitReason only if originating engine
+      // didn't set one — otherwise preserve the sub-engine's reason.
+      exitReason: t.exitReason,
+      // equity is recomputed below so pass through the original equityAfter is fine
+      equityAfter: t.equityAfter,
     });
 
-    tradesThisDay++;
+    equity += t.pnl;
+    maxEquity = Math.max(maxEquity, equity);
+    const dd = ((maxEquity - equity) / maxEquity) * 100;
+    maxDrawdown = Math.max(maxDrawdown, dd);
+    if (t.pnl < 0) dailyLoss += Math.abs(t.pnl);
+    taken++;
   }
 
   const wins = trades.filter((t) => t.pnl > 0).length;
   const winRate = trades.length > 0 ? (wins / trades.length) * 100 : 0;
   const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
+
+  // Summary of author contribution for diagnostics.
+  const byEngine: Record<string, number> = {};
+  for (const pick of picks.slice(0, taken)) {
+    byEngine[pick.best.engine] = (byEngine[pick.best.engine] ?? 0) + 1;
+  }
+  const contribBreakdown = Object.entries(byEngine)
+    .map(([e, n]) => `${e}×${n}`)
+    .join(', ') || 'none';
 
   return {
     trades,
@@ -1031,7 +998,7 @@ export function simulateClaude(
     winRate,
     maxDrawdown,
     finalEquity: equity,
-    entryMethod: 'Claude Enhanced: Up to 3 trades/day, score-weighted sizing, 2hr entry, partial profits at 2R, EOD tightening',
+    entryMethod: `Author Blend — picked ${taken}/${picks.length} signals across Emanuel+DumbHunter+ProRealAlgos+Fabio (${contribBreakdown})`,
     skippedStocks,
     skippedReasons,
   };
@@ -1619,4 +1586,506 @@ export function simulateProRealAlgos(
     skippedStocks,
     skippedReasons,
   };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  DUMB HUNTER — Dumb Money Concepts (DMC) Level Reclaim
+// ═══════════════════════════════════════════════════════════════
+//
+// Source: 5 Dumb Hunter transcripts:
+//   12 — DMC Gold Strategy (core method, gaining/losing levels)
+//   13 — Updated method (precise candle-close entries replace zone averaging)
+//   14 — ICT-flagged video (swing-focused; ~80%+ WR on daily/weekly, ~60% intraday)
+//   15 — Trend Determination (candle body closes beyond level = trend continuation)
+//   16 — Identifying Levels (standard, pass-through, skipping/jumping levels)
+//
+// CORE THESIS — "All you need to know is how price reacts to the levels of
+// the candle bodies." Two-direction mechanics:
+//
+//   R1. FAIL-TO-LOSE-A-LEVEL → must retest then continue the other way.
+//       ("After you failed to lose a level, what we must do is retest it.")
+//   R2. FAIL NEW HIGH / FAIL NEW LOW → must travel to the opposite side.
+//   R3. REGAIN A LOST ZONE → travel to the opposite side of that move.
+//   R4. TREND CONTINUATION → candle body CLOSES beyond a new level →
+//       come back, retest that gained level, continue.
+//
+// LEVELS are candle-body opens AND closes at pivot points. Three categories
+// per transcript 16:
+//   • Standard: body-open AND body-close of the pivot bar (BOTH sides exist).
+//   • Pass-through: when a recent bar is very wide (FVG-like), use older
+//     bars' body levels as alternative retest targets. These weaken with age.
+//   • Skipping/jumping: high-volatility moves may skip nearby levels and
+//     retest a further, more significant one instead.
+//   Draw a ZONE of several levels — you don't know which one price will
+//   pick; place orders across the zone.
+//
+// FRACTAL: Monthly/weekly/daily most significant; intraday below. "Larger
+// fractals override smaller." Author explicitly prefers SWING (daily/weekly/
+// monthly setups, hourly for context) — "don't use anything lower than
+// hourly" for the 80%+ WR version. Day-trading version runs ~60% WR.
+//
+// ENTRY (updated method, transcript 13):
+//   Precise 5-min candle close that re-enters the lost level. No averaging.
+//   Long: prev close below level, current close above level → buy at close.
+//   Short: mirror. Can scale in: blind entry at the level, then add on the
+//   retest-confirmation close.
+//
+// STOP: "Don't lose that back wick" — reclaim candle's low (longs) / high
+// (shorts).
+//
+// TARGET: Next significant level in the direction of the reclaim. Already-
+// tested levels are preferred. "If scared, exit early. If confident, it
+// should break."
+//
+// EXAMPLE RESULT (transcript 14): $5k → $96k swing-trading gold in ~3 months,
+// tracked on live stream.
+//
+// BACKTEST CAVEAT: This engine runs on 5-min intraday bars (day-trading
+// regime) which is explicitly the LOWER-WR mode (~60%). Expect worse
+// results than the author's swing claims. The swing edge is outside the
+// current backtest's intraday scope.
+
+export interface DumbHunterParams {
+  /** Bars either side of a pivot to confirm a swing high/low on dailyBars. */
+  pivotLookback: number;
+  /** Minimum reward:risk from reclaim close to next level. */
+  minRR: number;
+  /** Merge levels closer than this fraction (0.003 = 0.3%) — dedupe near-identical pivots. */
+  levelMergeTolerance: number;
+  /** Ignore levels closer than this % from the reclaim close (noise). */
+  minLevelDistancePercent: number;
+  /** Ignore levels farther than this % from the reclaim close (unreachable). */
+  maxLevelDistancePercent: number;
+  /** Scan window for reclaim signals in 5-min bars (78 = full session). */
+  entryWindowBars: number;
+  /** Exit at this bar index if still open (76 = 10 min before close on 5-min bars). */
+  eodExitBar: number;
+  /** Risk per trade as fraction of capital. */
+  riskPercent: number;
+  /** One trade per symbol per day. */
+  maxTradesPerSymbol: number;
+  /**
+   * Per transcript 16: both sides of a candle body are valid levels. When true,
+   * each pivot bar contributes BOTH its body-open AND body-close as levels
+   * (instead of only the body extreme).
+   */
+  includeBothBodySides: boolean;
+  /**
+   * Per transcript 16: a "pass-through level" comes from older data when a
+   * recent wide candle can't be retested normally. When a daily bar's range
+   * exceeds passThroughWideRangeMultiple × trailing-average range, we add
+   * body levels from the preceding `passThroughLookback` bars as fallback
+   * retest targets. Set to 0 to disable.
+   */
+  passThroughLookback: number;
+  /** A daily bar is "wide" if its range exceeds this multiple of the 20-bar avg range. */
+  passThroughWideRangeMultiple: number;
+  /**
+   * Include WEEKLY pivot body-levels in the zone. Weekly bars are resampled
+   * from daily bars (Mon-Fri OHLC aggregation). Author ranks weekly > daily
+   * ("super critical"), so these levels are top-priority retest targets.
+   */
+  useWeeklyLevels: boolean;
+  /** Include MONTHLY pivot body-levels — highest priority per the author's hierarchy. */
+  useMonthlyLevels: boolean;
+  /** Pivot lookback for weekly/monthly bars (smaller since HTF series is shorter). */
+  htfPivotLookback: number;
+}
+
+export const DUMB_HUNTER_DEFAULT_PARAMS: DumbHunterParams = {
+  pivotLookback: 3,
+  minRR: 1.5,
+  levelMergeTolerance: 0.003, // tightened — transcript 16 wants a zone of many levels, not a line
+  minLevelDistancePercent: 0.3,
+  maxLevelDistancePercent: 5.0,
+  entryWindowBars: 78,
+  eodExitBar: 76,
+  riskPercent: 0.02,
+  maxTradesPerSymbol: 1,
+  includeBothBodySides: true,
+  passThroughLookback: 10,
+  passThroughWideRangeMultiple: 1.8,
+  useWeeklyLevels: true,
+  useMonthlyLevels: true,
+  htfPivotLookback: 2,
+};
+
+export function simulateDumbHunter(
+  setups: StockSetup[],
+  capital: number,
+  params?: Partial<DumbHunterParams>,
+): SimResult {
+  const p = { ...DUMB_HUNTER_DEFAULT_PARAMS, ...params };
+  let equity = capital;
+  let maxEquity = equity;
+  let maxDrawdown = 0;
+  const trades: SimulatedTrade[] = [];
+  let skippedStocks = 0;
+  const skippedReasons: string[] = [];
+
+  for (const setup of setups) {
+    const { bars, symbol, dailyBars } = setup;
+
+    if (!dailyBars || dailyBars.length < p.pivotLookback * 2 + 1) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Insufficient daily bars for pivot detection`);
+      continue;
+    }
+    if (bars.length < 5) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Not enough intraday bars`);
+      continue;
+    }
+
+    // ── Build HTF levels across daily + weekly + monthly pivots ──
+    // Per transcripts 14 & 16: monthly/weekly are "super critical"; daily is
+    // primary; both body-open AND body-close of each pivot are valid levels.
+    // We pool levels across all three TFs and dedupe by tolerance.
+    const rawLevels: number[] = [];
+
+    // DAILY pivots
+    rawLevels.push(...buildBodyPivotLevels(dailyBars, p.pivotLookback, p.includeBothBodySides));
+
+    // WEEKLY pivots (resampled from daily bars)
+    if (p.useWeeklyLevels) {
+      const weekly = resampleToWeekly(dailyBars);
+      rawLevels.push(...buildBodyPivotLevels(weekly, p.htfPivotLookback, p.includeBothBodySides));
+    }
+
+    // MONTHLY pivots (resampled from daily bars)
+    if (p.useMonthlyLevels) {
+      const monthly = resampleToMonthly(dailyBars);
+      rawLevels.push(...buildBodyPivotLevels(monthly, p.htfPivotLookback, p.includeBothBodySides));
+    }
+
+    // Pass-through levels (transcript 16): when a recent daily bar is very wide,
+    // price is unlikely to retest back through its own body — so older bars'
+    // body levels become retest candidates instead. Age-weighted: older = weaker.
+    if (p.passThroughLookback > 0 && dailyBars.length >= 20) {
+      const avgRange = dailyBars.slice(-20).reduce((s, b) => s + (b.high - b.low), 0) / 20;
+      const wideThreshold = avgRange * p.passThroughWideRangeMultiple;
+      for (let i = Math.max(p.passThroughLookback, dailyBars.length - 5); i < dailyBars.length; i++) {
+        const cur = dailyBars[i];
+        if ((cur.high - cur.low) <= wideThreshold) continue;
+        const lookStart = Math.max(0, i - p.passThroughLookback);
+        for (let k = lookStart; k < i; k++) {
+          const b = dailyBars[k];
+          rawLevels.push(b.open, b.close);
+        }
+      }
+    }
+
+    if (rawLevels.length === 0) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: No HTF levels detected`);
+      continue;
+    }
+
+    // Dedupe: merge levels within tolerance
+    const sorted = [...rawLevels].sort((a, b) => a - b);
+    const levels: number[] = [];
+    for (const lv of sorted) {
+      const last = levels[levels.length - 1];
+      if (last === undefined || (lv - last) / Math.max(last, 0.0001) > p.levelMergeTolerance) {
+        levels.push(lv);
+      }
+    }
+
+    // ── Scan intraday for a reclaim signal ──
+    let entryPrice: number | null = null;
+    let stopLevel: number | null = null;
+    let targetPrice: number | null = null;
+    let entryBarIndex = -1;
+    let side: 'buy' | 'sell' = 'buy';
+    let reclaimedLevel = 0;
+
+    const searchLimit = Math.min(bars.length, p.entryWindowBars);
+    outer: for (let i = 1; i < searchLimit; i++) {
+      const prev = bars[i - 1];
+      const bar = bars[i];
+
+      for (const lv of levels) {
+        const distancePct = Math.abs(bar.close - lv) / lv * 100;
+        if (distancePct < p.minLevelDistancePercent || distancePct > p.maxLevelDistancePercent) continue;
+
+        // LONG reclaim: prev close below level, current close above level
+        if (prev.close < lv && bar.close > lv) {
+          const aboveLevels = levels.filter((x) => x > bar.close);
+          if (aboveLevels.length === 0) continue;
+          const tgt = aboveLevels[0];
+          const risk = bar.close - bar.low;
+          const reward = tgt - bar.close;
+          if (risk <= 0) continue;
+          if (reward / risk < p.minRR) continue;
+
+          entryPrice = bar.close;
+          stopLevel = bar.low;
+          targetPrice = tgt;
+          entryBarIndex = i;
+          side = 'buy';
+          reclaimedLevel = lv;
+          break outer;
+        }
+
+        // SHORT reclaim: prev close above level, current close below level
+        if (prev.close > lv && bar.close < lv) {
+          const belowLevels = levels.filter((x) => x < bar.close);
+          if (belowLevels.length === 0) continue;
+          const tgt = belowLevels[belowLevels.length - 1];
+          const risk = bar.high - bar.close;
+          const reward = bar.close - tgt;
+          if (risk <= 0) continue;
+          if (reward / risk < p.minRR) continue;
+
+          entryPrice = bar.close;
+          stopLevel = bar.high;
+          targetPrice = tgt;
+          entryBarIndex = i;
+          side = 'sell';
+          reclaimedLevel = lv;
+          break outer;
+        }
+      }
+    }
+
+    if (entryPrice === null || stopLevel === null || targetPrice === null) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: No level-reclaim setup found`);
+      continue;
+    }
+
+    const riskPerShare = Math.abs(entryPrice - stopLevel);
+    if (riskPerShare <= 0) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Zero risk on entry`);
+      continue;
+    }
+
+    const maxRisk = capital * p.riskPercent;
+    const shares = Math.floor(maxRisk / riskPerShare);
+    if (shares <= 0) {
+      skippedStocks++;
+      skippedReasons.push(`${symbol}: Stop too wide for capital`);
+      continue;
+    }
+
+    // ── Simulate: stop / target / EOD ──
+    let exitPrice: number | null = null;
+    let exitReason: SimulatedTrade['exitReason'] = 'end_of_day';
+    const isLong = side === 'buy';
+
+    const exitLimit = Math.min(bars.length, p.eodExitBar);
+    for (let i = entryBarIndex + 1; i < exitLimit; i++) {
+      const bar = bars[i];
+      if (isLong) {
+        if (bar.low <= stopLevel) {
+          exitPrice = stopLevel; exitReason = 'stop_loss'; break;
+        }
+        if (bar.high >= targetPrice) {
+          exitPrice = targetPrice; exitReason = 'take_profit'; break;
+        }
+      } else {
+        if (bar.high >= stopLevel) {
+          exitPrice = stopLevel; exitReason = 'stop_loss'; break;
+        }
+        if (bar.low <= targetPrice) {
+          exitPrice = targetPrice; exitReason = 'take_profit'; break;
+        }
+      }
+    }
+    if (exitPrice === null) {
+      exitPrice = bars[Math.min(bars.length - 1, exitLimit - 1)].close;
+      exitReason = 'end_of_day';
+    }
+
+    const multiplier = isLong ? 1 : -1;
+    const pnlPerShare = (exitPrice - entryPrice) * multiplier;
+    const pnlPercent = (pnlPerShare / entryPrice) * 100;
+    const pnl = pnlPerShare * shares;
+
+    equity += pnl;
+    maxEquity = Math.max(maxEquity, equity);
+    const drawdown = ((maxEquity - equity) / maxEquity) * 100;
+    maxDrawdown = Math.max(maxDrawdown, drawdown);
+
+    trades.push({
+      date: bars[0].timestamp,
+      symbol,
+      entryPrice,
+      exitPrice,
+      pnl,
+      pnlPercent,
+      side,
+      exitReason,
+      shares,
+      gapPercent: setup.gapPercent,
+      equityAfter: equity,
+    });
+    // Reference so it isn't flagged unused — supports future diagnostics.
+    void reclaimedLevel;
+  }
+
+  const wins = trades.filter((t) => t.pnl > 0).length;
+  const winRate = trades.length > 0 ? (wins / trades.length) * 100 : 0;
+  const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
+
+  return {
+    trades,
+    totalPnl,
+    winRate,
+    maxDrawdown,
+    finalEquity: equity,
+    entryMethod: 'DMC Level Reclaim: close back into lost HTF level → target next level → stop at reclaim-bar extreme',
+    skippedStocks,
+    skippedReasons,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  DUMB HUNTER — SWING SIGNAL GENERATOR
+// ═══════════════════════════════════════════════════════════════
+//
+// Walks a symbol's daily-bar history bar-by-bar and emits a signal every
+// time a daily candle closes back into a previously-lost HTF level.
+//
+// This is the swing counterpart to simulateDumbHunter's intraday entry scan:
+//   • Entries on DAILY closes (not 5-min closes)
+//   • Stops on the daily bar's extreme (not intraday wick)
+//   • Targets = next HTF level up/down
+//   • Holds can span many trading days (portfolio sim owns exit logic)
+//
+// Levels are built INCREMENTALLY — for each candidate day i, levels come
+// from bars[0..i-1] only. No lookahead bias.
+
+export interface DumbHunterSwingSignal {
+  symbol: string;
+  entryDate: string;           // ISO timestamp of the reclaim bar
+  entryBarIndex: number;       // index in dailyBars
+  side: 'buy' | 'sell';
+  entryPrice: number;          // reclaim bar close
+  stopLevel: number;           // reclaim bar low (long) / high (short)
+  targetPrice: number;         // next HTF level
+  reclaimedLevel: number;
+  rrPotential: number;
+}
+
+export interface DumbHunterSwingParams {
+  pivotLookback: number;
+  htfPivotLookback: number;
+  useWeeklyLevels: boolean;
+  useMonthlyLevels: boolean;
+  includeBothBodySides: boolean;
+  levelMergeTolerance: number;
+  /** Ignore levels closer than this % (noise). */
+  minLevelDistancePercent: number;
+  /** Ignore levels farther than this % (unreachable on swing scale). */
+  maxLevelDistancePercent: number;
+  /** Minimum R:R from reclaim close to target. */
+  minRR: number;
+  /** Risk per trade as fraction of capital. */
+  riskPercent: number;
+  /** Time-stop: close a position after this many trading days with no stop/target hit. */
+  maxHoldDays: number;
+  /** Max concurrently open positions across the portfolio. */
+  maxConcurrentPositions: number;
+}
+
+export const DUMB_HUNTER_SWING_DEFAULT_PARAMS: DumbHunterSwingParams = {
+  pivotLookback: 3,
+  htfPivotLookback: 2,
+  useWeeklyLevels: true,
+  useMonthlyLevels: true,
+  includeBothBodySides: true,
+  levelMergeTolerance: 0.003,
+  // Swing scale is much wider than intraday — levels can be 5-15% away and still be retests.
+  minLevelDistancePercent: 0.3,
+  maxLevelDistancePercent: 15.0,
+  minRR: 1.5,
+  riskPercent: 0.02,
+  maxHoldDays: 20,
+  maxConcurrentPositions: 5,
+};
+
+export function generateDumbHunterSwingSignals(
+  symbol: string,
+  dailyBars: BarData[],
+  startIdx: number,
+  params?: Partial<DumbHunterSwingParams>,
+): DumbHunterSwingSignal[] {
+  const p = { ...DUMB_HUNTER_SWING_DEFAULT_PARAMS, ...params };
+  const signals: DumbHunterSwingSignal[] = [];
+
+  const earliest = Math.max(startIdx, p.pivotLookback + 1);
+  if (dailyBars.length <= earliest) return signals;
+
+  for (let i = earliest; i < dailyBars.length; i++) {
+    // Build level zone from bars strictly before the evaluation bar (anti-lookahead).
+    const prior = dailyBars.slice(0, i);
+    if (prior.length < p.pivotLookback * 2 + 1) continue;
+
+    const raw: number[] = [];
+    raw.push(...buildBodyPivotLevels(prior, p.pivotLookback, p.includeBothBodySides));
+    if (p.useWeeklyLevels) {
+      raw.push(...buildBodyPivotLevels(resampleToWeekly(prior), p.htfPivotLookback, p.includeBothBodySides));
+    }
+    if (p.useMonthlyLevels) {
+      raw.push(...buildBodyPivotLevels(resampleToMonthly(prior), p.htfPivotLookback, p.includeBothBodySides));
+    }
+    if (raw.length === 0) continue;
+
+    const sorted = [...raw].sort((a, b) => a - b);
+    const levels: number[] = [];
+    for (const lv of sorted) {
+      const last = levels[levels.length - 1];
+      if (last === undefined || (lv - last) / Math.max(last, 0.0001) > p.levelMergeTolerance) {
+        levels.push(lv);
+      }
+    }
+
+    const prev = dailyBars[i - 1];
+    const cur = dailyBars[i];
+
+    for (const lv of levels) {
+      const distancePct = Math.abs(cur.close - lv) / lv * 100;
+      if (distancePct < p.minLevelDistancePercent || distancePct > p.maxLevelDistancePercent) continue;
+
+      // LONG reclaim
+      if (prev.close < lv && cur.close > lv) {
+        const above = levels.filter((x) => x > cur.close);
+        if (above.length === 0) continue;
+        const tgt = above[0];
+        const risk = cur.close - cur.low;
+        const reward = tgt - cur.close;
+        if (risk <= 0) continue;
+        const rr = reward / risk;
+        if (rr < p.minRR) continue;
+        signals.push({
+          symbol, entryDate: cur.timestamp, entryBarIndex: i, side: 'buy',
+          entryPrice: cur.close, stopLevel: cur.low, targetPrice: tgt,
+          reclaimedLevel: lv, rrPotential: rr,
+        });
+        break; // one signal per day per symbol
+      }
+
+      // SHORT reclaim
+      if (prev.close > lv && cur.close < lv) {
+        const below = levels.filter((x) => x < cur.close);
+        if (below.length === 0) continue;
+        const tgt = below[below.length - 1];
+        const risk = cur.high - cur.close;
+        const reward = cur.close - tgt;
+        if (risk <= 0) continue;
+        const rr = reward / risk;
+        if (rr < p.minRR) continue;
+        signals.push({
+          symbol, entryDate: cur.timestamp, entryBarIndex: i, side: 'sell',
+          entryPrice: cur.close, stopLevel: cur.high, targetPrice: tgt,
+          reclaimedLevel: lv, rrPotential: rr,
+        });
+        break;
+      }
+    }
+  }
+
+  return signals;
 }
